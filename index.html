@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>地下段列車 G-meter 測速儀</title>
+  <title>地下段列車 G-meter & GPS 雙模測速儀</title>
   <style>
   /* --- 基礎設定 --- */
   * { box-sizing: border-box; }
@@ -26,36 +26,14 @@
     border-radius: 16px; 
     width: 100%;       
     max-width: 440px; 
-    border: 1px solid #333; /* 寫死深色線條 */
+    border: 1px solid #333;
     box-shadow: 0 12px 30px rgba(0,0,0,0.45); 
     overflow: hidden;  
   }
 
-  h1 { font-size: 1.25rem; color: #ff9800; text-align: center; margin: 0 0 20px; }
+  h1 { font-size: 1.2rem; color: #ff9800; text-align: center; margin: 0 0 15px; }
 
-  /* 提示文字 */
-  .label-hint { font-size: 0.8rem; color: #888; margin-bottom: 10px; }
-
-  /* 快速選取按鈕 */
-  .quick-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
-
-  .quick-tags button { 
-    background: #2a2a2a; 
-    color: #ff9800; 
-    border: 1.5px solid #ff9800; 
-    padding: 8px 4px; 
-    border-radius: 7px; 
-    font-size: 0.74rem; 
-    flex: 1 1 calc(33.333% - 8px); 
-    cursor: pointer; 
-    transition: all 0.15s ease; 
-    font-weight: 600;
-    white-space: nowrap;     
-    overflow: hidden;        
-    text-overflow: ellipsis; 
-  }
-
-  /* 萬用按鈕點擊特效 (包含所有歷史紀錄區域按鈕) */
+  /* 萬用按鈕點擊特效 */
   .calculator button:active,
   .record-card button:active { 
     filter: brightness(0.75) !important; 
@@ -64,50 +42,21 @@
   }
 
   /* 輸入框控制 */
-  .horizontal-inputs { display: flex; gap: 10px; }
-  .horizontal-inputs input { flex: 1; min-width: 0; }
-
-  .input-group { margin-bottom: 15px; }
-  label { display: block; font-size: 0.82rem; margin-bottom: 6px; color: #aaa; }
-
   input { 
     width: 100%; 
-    padding: 11px; 
+    padding: 10px; 
     background: #252525; 
     border: 1px solid #444; 
     border-radius: 8px; 
     color: #fff; 
     outline: none; 
-    font-size: 0.95rem;
+    font-size: 0.85rem;
   }
 
   input:focus { border-color: #ff9800; }
 
-  /* 車廂組合顯示盒 */
-  .parts-box { 
-    background: #252525; 
-    border: 1px solid #333; 
-    border-radius: 10px; 
-    padding: 12px; 
-    min-height: 50px; 
-    margin-bottom: 15px;
-  }
-
-  .placeholder-text { color: #555; text-align: center; font-size: 0.8rem; padding-top: 5px; }
-
-  .part-row { 
-    display: grid; 
-    grid-template-columns: 1fr 80px; 
-    gap: 10px; 
-    align-items: center; 
-    margin-bottom: 8px; 
-  }
-
-  .part-name { color: #ddd; font-size: 0.85rem; font-weight: 600; }
-  .part-row input { text-align: center; padding: 5px; height: 30px; }
-
   .calc-btn { 
-    flex: 2; 
+    flex: 1; 
     background: #ff9800; 
     color: #121212; 
     border: none; 
@@ -115,63 +64,86 @@
     border-radius: 8px; 
     font-weight: bold; 
     cursor: pointer; 
+    font-size: 0.9rem;
   }
 
   .calc-btn:hover { background: #e68a00; }
 
+  /* 矯正歸零按鈕專用樣式 */
+  .btn-zero-style {
+    flex: 1;
+    background: #e65c00;
+    color: #ffffff;
+    border: none;
+    padding: 12px;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background 0.2s ease;
+  }
+
+  .btn-zero-style:hover { background: #cf5300; }
+
+  /* 速度對照卡片雙欄佈局 */
+  .speed-compare-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .speed-card {
+    background: #181818;
+    border: 1px solid #2a2a2a;
+    border-radius: 10px;
+    padding: 10px 5px;
+    text-align: center;
+  }
+
+  .speed-card-title {
+    font-size: 0.75rem;
+    color: #888;
+    margin-bottom: 4px;
+    font-weight: 600;
+  }
+
+  .speed-val-lg {
+    font-size: 2rem;
+    font-weight: 800;
+    line-height: 1.1;
+  }
+
+  .gmeter-color { color: #ff9800; }
+  .gps-color { color: #00bcd4; }
+
+  .unit { font-size: 0.75rem; color: #666; margin-left: 2px; }
+
   /* 結果區域 */
   .result-box { 
     background: #121212; 
-    padding: 16px; 
+    padding: 14px; 
     border-radius: 12px; 
     text-align: center; 
     margin: 12px 0; 
     border: 1px solid #222; 
-    transition: border-color 0.3s;
+  }
+  
+  .distance-box {
+    font-size: 0.95rem;
+    color: #3498db;
+    font-weight: 700;
+    margin-bottom: 6px;
   }
 
-  .speed { font-size: 2.5rem; color: #ff9800; font-weight: 800; }
-  .unit { font-size: 0.9rem; color: #666; margin-left: 4px; }
-  .info { font-size: 0.85rem; color: #aaa; margin-top: 6px; }
+  .info { font-size: 0.8rem; color: #aaa; margin-top: 4px; }
+  .axis-title { color: #888; font-weight: 600; }
 
   hr { 
     border: 0; 
     border-top: 1px solid #333; 
-    margin: 20px 0; 
+    margin: 18px 0; 
   }
-
-  /* 輔助對照表 */
-  .reference-guide { 
-    background: #252525; 
-    padding: 12px; 
-    border-radius: 10px; 
-    border: 1px solid #333; 
-    margin-top: 20px; 
-  }
-
-  .guide-title { 
-    font-size: 0.8rem; 
-    color: #ff9800; 
-    margin-bottom: 8px; 
-    font-weight: bold; 
-  }
-
-  .guide-content { 
-    max-height: 270px; 
-    overflow-y: auto; 
-    font-size: 0.75rem; 
-  }
-
-  /* 表格樣式 */
-  table { width: 100%; border-collapse: collapse; }
-  td { 
-    padding: 8px 5px; 
-    border-bottom: 1px solid #333; 
-    color: #888; 
-  }
-  td:first-child { color: #ff9800; font-weight: bold; width: 80px; }
-  .guide-content::-webkit-scrollbar { width: 4px; }
-  .guide-content::-webkit-scrollbar-thumb { background: #ff9800; border-radius: 10px; }
 
   .btn-row { 
     display: flex; 
@@ -180,21 +152,22 @@
   }
 
   .reset-btn { 
-    flex: 0 0 90px; 
+    flex: 0 0 75px; 
     background: #333; 
     color: #999; 
     border: 1px solid #444; 
     border-radius: 8px; 
-    font-size: 0.75rem;
+    font-size: 0.85rem;
+    font-weight: bold;
     cursor: pointer;
   }
 
-  /* 秒數助手外框 */
+  /* 參數設定外框 */
   .helper-box {
     background: #2a2a2a;
-    padding: 15px;
+    padding: 12px;
     border-radius: 12px;
-    margin-bottom: 20px;
+    margin-bottom: 15px;
     border: 1px dashed #555;
   }
 
@@ -202,127 +175,60 @@
     color: #ff9800;
     font-weight: bold;
     display: block;
-    margin-bottom: 12px;
+    margin-bottom: 8px;
+    font-size: 0.85rem;
   }
 
   .helper-inputs {
     display: flex;
     align-items: center;
     gap: 5px;
-    margin-bottom: 12px;
-  }
-
-  .helper-inputs input {
-    flex: 1;
-    min-width: 0; 
-    text-align: center;
-    padding: 10px 5px;
-    height: 38px;
-  }
-
-  .operator {
-    color: #888;
-    font-weight: bold;
-    padding: 0 5px;
-  }
-
-  .helper-btns {
-    display: flex;
-    gap: 10px;
+    margin-bottom: 8px;
   }
 
   .btn-fill {
-    flex: 2;
-    padding: 12px;
+    flex: 1;
+    padding: 10px;
     background: transparent;
     color: #ff9800;
     border: 1.5px solid #ff9800;
     border-radius: 8px;
     font-weight: bold;
     cursor: pointer;
-  }
-
-  .btn-clear {
-    flex: 1;
-    padding: 12px;
-    background: #333;
-    color: #888;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
     font-size: 0.85rem;
-  }
-
-  .reset-all-container {
-    margin-bottom: 20px;
-  }
-
-  .btn-danger {
-    width: 100%;
-    padding: 12px;
-    background: #442222;
-    color: #ff6666;
-    border: 1px solid #663333;
-    border-radius: 8px;
-    font-weight: bold;
-    cursor: pointer;
-  }
-
-  .accel-theme {
-    background: #e65c00 !important;
-    color: #fff !important;
-  }
-
-  .accel-box {
-    border-color: #444 !important;
-  }
-
-  .light-speed {
-    color: #e0e0e0 !important;
   }
 
   .category-title {
     color: #fff !important;      
     font-size: 0.95rem;          
     font-weight: 800;            
-    padding-top: 15px !important;
+    padding-top: 10px !important;
     padding-bottom: 5px !important;
     border-bottom: 2px solid #ff9800; 
     width: 100%;                 
   }
 
   /* 歷史觀測紀錄日誌樣式 */
-  .record-card {
-    margin-top: 20px;
-  }
+  .record-card { margin-top: 15px; }
 
   .record-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 16px;
+    margin-bottom: 12px;
     border-bottom: 1px solid #333;
-    padding-bottom: 10px;
-  }
-
-  .record-header h3 {
-    margin: 0;
-    font-size: 18px;
-    font-weight: 700;
+    padding-bottom: 8px;
   }
 
   .btn-clear-all {
     background-color: #e74c3c !important;
     color: white !important;
-    padding: 6px 14px;
-    font-size: 13px;
+    padding: 5px 10px;
+    font-size: 12px;
     font-weight: 500;
     border: none;
     border-radius: 6px;
     cursor: pointer;
-    width: auto !important;
-    margin: 0;
-    transition: opacity 0.2s ease, transform 0.1s ease;
   }
 
   .record-table-wrapper {
@@ -336,157 +242,162 @@
     width: 100%;
     border-collapse: collapse;
     text-align: left;
-    font-size: 14px;
+    font-size: 12px;
     white-space: nowrap; 
   }
 
   .record-table th {
-    padding: 12px 10px;
+    padding: 8px 6px;
     border-bottom: 2px solid #333;
     color: #888;
     font-weight: 500;
-    font-size: 13px;
-  }
-
-  .record-table tr {
-    border-bottom: 1px solid #333;
-    transition: background-color 0.15s ease;
-  }
-
-  .record-table tbody tr:hover {
-    background-color: rgba(255, 255, 255, 0.02);
   }
 
   .record-table td {
-    padding: 12px 10px;
+    padding: 8px 6px;
     vertical-align: middle;
   }
 
   .record-data-cell {
-    font-family: 'Noto Sans Mono', ui-monospace, 'SFMono-Regular', 'Roboto Mono', Consolas, monospace !important;
+    font-family: 'Noto Sans Mono', ui-monospace, Consolas, monospace !important;
     font-weight: 700;
-    font-size: 16px;
-    color: #e0e0e0;
   }
 
   .record-badge {
-    padding: 3px 8px;
+    padding: 2px 5px;
     border-radius: 4px;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 500;
     display: inline-block;
   }
 
-  .badge-speed {
-    background-color: rgba(52, 152, 219, 0.15);
-    color: #3498db;
-  }
-
-  .badge-accel {
-    background-color: rgba(46, 204, 113, 0.15);
-    color: #2ecc71;
-  }
+  .badge-gmeter { background-color: rgba(255, 152, 0, 0.15); color: #ff9800; }
+  .badge-gps { background-color: rgba(0, 188, 212, 0.15); color: #00bcd4; }
 
   .btn-delete {
     background: #442222;
     color: #ff6666;
     border: 1px solid #663333;
-    padding: 5px 10px;
+    padding: 3px 6px;
     border-radius: 4px;
     cursor: pointer;
-    font-size: 0.75rem;
-    transition: transform 0.05s ease, filter 0.05s ease;
+    font-size: 0.7rem;
   }
 
   .pagination-container {
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 15px;
-    margin-top: 15px;
+    gap: 12px;
+    margin-top: 12px;
   }
 
   .btn-page {
     background: #2a2a2a;
     color: #ff9800;
     border: 1px solid #ff9800;
-    padding: 4px 12px;
+    padding: 3px 10px;
     border-radius: 4px;
     cursor: pointer;
     font-weight: bold;
+    font-size: 0.8rem;
   }
 
-  .btn-page:disabled {
-    border-color: #444;
-    color: #555;
-    cursor: not-allowed;
-  }
-
-  .page-info {
-    font-size: 0.85rem;
-    color: #aaa;
-  }
+  .btn-page:disabled { border-color: #444; color: #555; cursor: not-allowed; }
+  .page-info { font-size: 0.8rem; color: #aaa; }
 
   /* 自訂狀態警示標籤 */
   .status-tag {
-    font-size: 0.75rem;
-    padding: 3px 8px;
+    font-size: 0.72rem;
+    padding: 3px 6px;
     border-radius: 4px;
-    margin-top: 4px;
     display: inline-block;
   }
   .status-active { background: rgba(46, 204, 113, 0.2); color: #2ecc71; border: 1px solid #2ecc71; }
   .status-inactive { background: rgba(231, 76, 60, 0.2); color: #e74c3c; border: 1px solid #e74c3c; }
+  .status-gps { background: rgba(0, 188, 212, 0.2); color: #00bcd4; border: 1px solid #00bcd4; }
+  .placeholder-text { color: #555; text-align: center; font-size: 0.8rem; padding: 15px 0; }
   </style>
 </head>
 <body>
 
 <div class="calculator">
-  <h1>列車地下段 G-meter 測速儀</h1>
+  <h1>地下段列車 G-meter & GPS 雙模測速儀</h1>
 
-  <!-- iOS 權限要求按鈕 -->
-  <div id="permission-btn-container" style="margin-bottom: 15px; display: none;">
-    <button id="btn-request-permission" class="btn-fill" style="width: 100%;">點擊授權動態感測器 (iOS)</button>
+  <!-- 權限要求按鈕列 -->
+  <div id="permission-btn-container" style="margin-bottom: 12px; display: flex; gap: 8px;">
+    <button id="btn-request-permission" class="btn-fill">授權動態感測器 (iOS)</button>
+    <button id="btn-request-gps" class="btn-fill" style="color: #00bcd4; border-color: #00bcd4;">開啟 GPS 定位</button>
   </div>
 
   <!-- 狀態提示區域 -->
-  <div style="text-align: center; margin-bottom: 10px;">
-    <span id="calib-status" class="status-tag status-inactive">校準狀態：尚未校準 (請於靜止時按 ZERO)</span>
+  <div style="text-align: center; margin-bottom: 10px; display: flex; flex-direction: column; gap: 4px; align-items: center;">
+    <span id="calib-status" class="status-tag status-inactive">G-meter 校準：未校準 (請靜止時按矯正歸零)</span>
+    <span id="gps-status" class="status-tag status-inactive">GPS 定位：未啟動</span>
   </div>
 
-  <!-- 速度與加速度顯示面板 -->
+  <!-- 速度對照雙卡片 -->
+  <div class="speed-compare-grid">
+    <div class="speed-card">
+      <div class="speed-card-title">G-meter 積分車速</div>
+      <div class="speed-val-lg gmeter-color"><span id="speed-val">0.0</span><span class="unit">km/h</span></div>
+    </div>
+    <div class="speed-card">
+      <div class="speed-card-title">GPS 衛星實測</div>
+      <div class="speed-val-lg gps-color"><span id="gps-speed-val">0.0</span><span class="unit">km/h</span></div>
+    </div>
+  </div>
+
+  <!-- 速度、位移與雙軸加速度顯示面板 -->
   <div class="result-box">
-    <div class="speed"><span id="speed-val">0.0</span><span class="unit"> km/h</span></div>
+    <!-- 總位移顯示區 -->
+    <div class="distance-box">
+      G-meter 累積位移：<span id="dist-val">0.0</span> <span id="dist-unit">m</span>
+    </div>
+
+    <!-- Y 軸 縱向加速/減速 -->
     <div class="info">
-      Y 軸加速度：<span id="accel-val" style="color: #ff9800; font-weight: bold;">0.000</span> m/s² 
+      <span class="axis-title">Y 軸 (縱向加速)：</span>
+      <span id="accel-val" style="color: #ff9800; font-weight: bold;">0.000</span> m/s² 
       (<span id="g-val">0.000</span> G)
     </div>
-    <div class="info" style="font-size: 0.75rem; color: #666; margin-top: 4px;">
-      測量時長：<span id="timer-val">0.0</span> 秒 | 最高速：<span id="max-speed-val">0.0</span> km/h
+
+    <!-- X 軸 橫向向心加速度 -->
+    <div class="info">
+      <span class="axis-title">X 軸 (橫向向心)：</span>
+      <span id="accel-x-val" style="color: #2ecc71; font-weight: bold;">0.000</span> m/s² 
+      (<span id="g-x-val">0.000</span> G)
+    </div>
+
+    <div class="info" style="font-size: 0.72rem; color: #666; margin-top: 8px; border-top: 1px dashed #333; padding-top: 6px;">
+      測量時長：<span id="timer-val">0.0</span> s | G-meter 極速：<span id="max-speed-val">0.0</span> km/h | GPS 極速：<span id="gps-max-speed-val">0.0</span> km/h
     </div>
   </div>
 
   <!-- 核心控制按鈕列 -->
   <div class="btn-row">
-    <button id="btn-zero" class="quick-tags" style="flex: 1; margin: 0;">
-      <button class="accel-theme" style="width: 100%; font-size: 0.9rem; padding: 12px;">ZERO 校準歸零</button>
-    </button>
-    <button id="btn-toggle" class="calc-btn" style="flex: 1;">START 開始錄製</button>
-    <button id="btn-reset" class="reset-btn">RESET 重置</button>
+    <button id="btn-zero" class="btn-zero-style">矯正歸零</button>
+    <button id="btn-toggle" class="calc-btn">START 開始錄製</button>
+    <button id="btn-reset" class="reset-btn">RESET</button>
   </div>
 
-  <!-- 秒數助手 / 低通濾波調校外框 -->
+  <!-- 參數與偏置設定面板 -->
   <div class="helper-box">
-    <span class="helper-label">⚙️ 濾波器與校準參數設定</span>
+    <span class="helper-label">⚙️️ 濾波器與雙軸偏置校準</span>
     
-    <label for="lpf-slider">低通濾波強度 (Smoothing Alpha: <span id="lpf-val">0.15</span>)</label>
+    <label for="lpf-slider" style="font-size: 0.78rem; color: #aaa;">低通濾波強度 (Smoothing Alpha: <span id="lpf-val">0.15</span>)</label>
     <div class="helper-inputs">
       <input type="range" id="lpf-slider" min="0.01" max="0.50" step="0.01" value="0.15">
     </div>
 
-    <label for="bias-display">當前 Y 軸零點偏移量 (Zero Offset):</label>
+    <label style="font-size: 0.78rem; color: #aaa;">Y 軸縱向零點偏置 (Zero Offset):</label>
     <div class="helper-inputs">
-      <input type="text" id="bias-display" value="0.0000 m/s²" readonly>
+      <input type="text" id="bias-display-y" value="0.0000 m/s²" readonly>
+    </div>
+
+    <label style="font-size: 0.78rem; color: #aaa;">X 軸橫向零點偏置 (Zero Offset):</label>
+    <div class="helper-inputs">
+      <input type="text" id="bias-display-x" value="0.0000 m/s²" readonly>
     </div>
   </div>
 
@@ -504,14 +415,16 @@
         <thead>
           <tr>
             <th>時間</th>
-            <th>極速 (km/h)</th>
-            <th>時長 (s)</th>
+            <th>G-極速</th>
+            <th>GPS極速</th>
+            <th>位移</th>
+            <th>時長</th>
             <th>操作</th>
           </tr>
         </thead>
         <tbody id="records-tbody">
           <tr>
-            <td colspan="4" class="placeholder-text">尚無觀測紀錄，按下 STOP 即自動存檔</td>
+            <td colspan="6" class="placeholder-text">尚無觀測紀錄，按下 STOP 即自動存檔</td>
           </tr>
         </tbody>
       </table>
@@ -531,11 +444,25 @@
 let isRecording = false;
 let isCalibrated = false;
 
-let yOffset = 0.0;           // ZERO 校準得到的 Y 軸偏置量 (m/s²)
-let currentRawY = 0.0;        // 原始 Y 軸數據
-let filteredY = 0.0;         // 低通濾波後的加速度
-let currentSpeed = 0.0;      // 當前速度 (m/s)
-let maxSpeedKmh = 0.0;       // 最高速 (km/h)
+// 偏置量 (Zero Offset)
+let xOffset = 0.0;           
+let yOffset = 0.0;           
+
+// 雙軸 Raw & Filtered 數據
+let currentRawX = 0.0;
+let currentRawY = 0.0;
+let filteredX = 0.0;
+let filteredY = 0.0;
+
+// 運動學數據
+let currentSpeed = 0.0;      // G-meter 當前速度 (m/s)
+let maxSpeedKmh = 0.0;       // G-meter 最高速 (km/h)
+let totalDisplacement = 0.0; // 總位移 (m)
+
+// GPS 數據
+let gpsWatchId = null;
+let currentGpsSpeedKmh = 0.0;// 當前 GPS 速度 (km/h)
+let maxGpsSpeedKmh = 0.0;    // GPS 最高速 (km/h)
 
 let lastTimestamp = null;
 let recordingStartTime = null;
@@ -550,12 +477,21 @@ const rowsPerPage = 5;
 
 // DOM 元件引用
 const speedValEl = document.getElementById('speed-val');
+const gpsSpeedValEl = document.getElementById('gps-speed-val');
+const distValEl = document.getElementById('dist-val');
+const distUnitEl = document.getElementById('dist-unit');
 const accelValEl = document.getElementById('accel-val');
 const gValEl = document.getElementById('g-val');
+const accelXValEl = document.getElementById('accel-x-val');
+const gXValEl = document.getElementById('g-x-val');
 const timerValEl = document.getElementById('timer-val');
 const maxSpeedValEl = document.getElementById('max-speed-val');
+const gpsMaxSpeedValEl = document.getElementById('gps-max-speed-val');
+
 const calibStatusEl = document.getElementById('calib-status');
-const biasDisplayEl = document.getElementById('bias-display');
+const gpsStatusEl = document.getElementById('gps-status');
+const biasDisplayYEl = document.getElementById('bias-display-y');
+const biasDisplayXEl = document.getElementById('bias-display-x');
 
 const btnZero = document.getElementById('btn-zero');
 const btnToggle = document.getElementById('btn-toggle');
@@ -569,17 +505,16 @@ const btnPrevPage = document.getElementById('btn-prev-page');
 const btnNextPage = document.getElementById('btn-next-page');
 const pageInfoEl = document.getElementById('page-info');
 
-// --- 1. iOS 權限申請檢查 ---
+// --- 1. iOS / Android 權限與感測器初始化 ---
+const permBtnContainer = document.getElementById('permission-btn-container');
+
 if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
-  const permBtnContainer = document.getElementById('permission-btn-container');
-  permBtnContainer.style.display = 'block';
-  
   document.getElementById('btn-request-permission').addEventListener('click', () => {
     DeviceMotionEvent.requestPermission()
       .then(response => {
         if (response === 'granted') {
-          permBtnContainer.style.display = 'none';
           initSensorListener();
+          document.getElementById('btn-request-permission').style.display = 'none';
         } else {
           alert('需要加速度計權限才能進行測速！');
         }
@@ -587,38 +522,47 @@ if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.request
       .catch(console.error);
   });
 } else {
+  document.getElementById('btn-request-permission').style.display = 'none';
   initSensorListener();
 }
 
-// --- 2. 監聽手機加速度計事件 ---
+// GPS 定位授權與監聽
+document.getElementById('btn-request-gps').addEventListener('click', () => {
+  initGpsListener();
+});
+
+// --- 2. 監聽手機雙軸加速度計事件 ---
 function initSensorListener() {
   window.addEventListener('devicemotion', (event) => {
     if (!event.accelerationIncludingGravity) return;
     
-    // 取出 Y 軸數據 (m/s²)
-    // 註：有些瀏覽器手機縱向朝前時前進為 -Y 或 +Y，依情況調整符號
-    let rawY = event.accelerationIncludingGravity.y || 0.0;
-    currentRawY = rawY;
+    currentRawX = event.accelerationIncludingGravity.x || 0.0;
+    currentRawY = event.accelerationIncludingGravity.y || 0.0;
 
-    // 低通濾波處理 (Low-Pass Filter) 消除微小抖動
+    filteredX = filteredX + lpfAlpha * (currentRawX - filteredX);
     filteredY = filteredY + lpfAlpha * (currentRawY - filteredY);
 
-    // 計算扣除 ZERO 校準後的淨加速度
-    let cleanAccel = filteredY - yOffset;
+    let cleanAccelX = filteredX - xOffset;
+    let cleanAccelY = filteredY - yOffset;
 
-    // 更新即時加速度與 G 值 UI
-    accelValEl.textContent = cleanAccel.toFixed(3);
-    gValEl.textContent = (cleanAccel / 9.80665).toFixed(3);
+    accelValEl.textContent = cleanAccelY.toFixed(3);
+    gValEl.textContent = (cleanAccelY / 9.80665).toFixed(3);
 
-    // 若正在錄製，執行積分算速度
+    accelXValEl.textContent = cleanAccelX.toFixed(3);
+    gXValEl.textContent = (cleanAccelX / 9.80665).toFixed(3);
+
     const now = performance.now();
     if (isRecording) {
       if (lastTimestamp !== null) {
-        let dt = (now - lastTimestamp) / 1000.0; // 秒
-        if (dt > 0 && dt < 0.5) { // 避免背景分頁導致 dt 過大
-          // 數值積分：v_new = v_old + a * dt
-          currentSpeed += cleanAccel * dt;
-          if (currentSpeed < 0) currentSpeed = 0; // 防止靜止負值漂移
+        let dt = (now - lastTimestamp) / 1000.0; 
+        if (dt > 0 && dt < 0.5) { 
+
+          // 1. 一次積分：計算車速
+          currentSpeed += cleanAccelY * dt;
+          if (currentSpeed < 0) currentSpeed = 0; 
+
+          // 2. 二次積分：計算總位移
+          totalDisplacement += currentSpeed * dt;
 
           let speedKmh = currentSpeed * 3.6;
           speedValEl.textContent = speedKmh.toFixed(1);
@@ -626,6 +570,14 @@ function initSensorListener() {
           if (speedKmh > maxSpeedKmh) {
             maxSpeedKmh = speedKmh;
             maxSpeedValEl.textContent = maxSpeedKmh.toFixed(1);
+          }
+
+          if (totalDisplacement >= 1000) {
+            distValEl.textContent = (totalDisplacement / 1000).toFixed(2);
+            distUnitEl.textContent = "km";
+          } else {
+            distValEl.textContent = totalDisplacement.toFixed(1);
+            distUnitEl.textContent = "m";
           }
 
           totalRecordedTime = (now - recordingStartTime) / 1000.0;
@@ -637,28 +589,81 @@ function initSensorListener() {
   });
 }
 
-// --- 3. 按鈕事件綁定 ---
+// --- 3. GPS 衛星測速監聽器 ---
+function initGpsListener() {
+  if (!("geolocation" in navigator)) {
+    alert("您的裝置或瀏覽器不支援 GPS 定位！");
+    return;
+  }
 
-// 【ZERO 校準按鈕】
+  gpsStatusEl.className = "status-tag status-gps";
+  gpsStatusEl.textContent = "GPS 定位：正在搜尋衛星...";
+
+  gpsWatchId = navigator.geolocation.watchPosition(
+    (position) => {
+      const speedMps = position.coords.speed; // 單位 m/s
+      const accuracy = position.coords.accuracy; // 精度 (m)
+
+      if (speedMps !== null && speedMps >= 0) {
+        currentGpsSpeedKmh = speedMps * 3.6;
+        gpsSpeedValEl.textContent = currentGpsSpeedKmh.toFixed(1);
+
+        if (isRecording && currentGpsSpeedKmh > maxGpsSpeedKmh) {
+          maxGpsSpeedKmh = currentGpsSpeedKmh;
+          gpsMaxSpeedValEl.textContent = maxGpsSpeedKmh.toFixed(1);
+        }
+      } else {
+        gpsSpeedValEl.textContent = "0.0";
+      }
+
+      gpsStatusEl.className = "status-tag status-gps";
+      gpsStatusEl.textContent = `GPS 定位：訊號良好 (精度 ±${Math.round(accuracy)}m)`;
+    },
+    (error) => {
+      gpsSpeedValEl.textContent = "0.0";
+      gpsStatusEl.className = "status-tag status-inactive";
+      if (error.code === error.POSITION_UNAVAILABLE) {
+        gpsStatusEl.textContent = "GPS 定位：地下段 (無 GPS 訊號)";
+      } else if (error.code === error.PERMISSION_DENIED) {
+        gpsStatusEl.textContent = "GPS 定位：使用者拒絕授權";
+      } else {
+        gpsStatusEl.textContent = "GPS 定位：訊號微弱";
+      }
+    },
+    {
+      enableHighAccuracy: true,
+      maximumAge: 1000,
+      timeout: 5000
+    }
+  );
+}
+
+// --- 4. 按鈕事件綁定 ---
+
+// 【矯正歸零按鈕】
 btnZero.addEventListener('click', () => {
-  // 擷取當前低通濾波後的 Y 軸數值作為 Bias 偏置量
+  xOffset = filteredX;
   yOffset = filteredY;
   isCalibrated = true;
 
-  // 強制速度與時間歸零
   currentSpeed = 0.0;
+  totalDisplacement = 0.0;
+  
   speedValEl.textContent = "0.0";
-  biasDisplayEl.value = yOffset.toFixed(4) + " m/s²";
+  distValEl.textContent = "0.0";
+  distUnitEl.textContent = "m";
 
-  // 更新 UI 狀態標籤
+  biasDisplayXEl.value = xOffset.toFixed(4) + " m/s²";
+  biasDisplayYEl.value = yOffset.toFixed(4) + " m/s²";
+
   calibStatusEl.className = "status-tag status-active";
-  calibStatusEl.textContent = "校準狀態：已啟用 ZERO 校準";
+  calibStatusEl.textContent = "G-meter 校準：雙軸已完成矯正歸零";
 });
 
 // 【START / STOP 開始與停止按鈕】
 btnToggle.addEventListener('click', () => {
   if (!isCalibrated) {
-    if (!confirm("⚠️ 尚未執行 ZERO 校準，建議在列車完全靜止時按 ZERO 以避免重力漂移！確定要直接開始嗎？")) {
+    if (!confirm("⚠️ 尚未執行矯正歸零，建議在列車靜止時點擊「矯正歸零」以避免重力漂移！確定要直接開始嗎？")) {
       return;
     }
   }
@@ -677,9 +682,8 @@ btnToggle.addEventListener('click', () => {
     btnToggle.style.background = "#ff9800";
     btnToggle.style.color = "#121212";
 
-    // 停止錄製時自動存入歷史紀錄
     if (totalRecordedTime > 1.0) {
-      addRecord(maxSpeedKmh, totalRecordedTime);
+      addRecord(maxSpeedKmh, maxGpsSpeedKmh, totalDisplacement, totalRecordedTime);
     }
   }
 });
@@ -693,11 +697,17 @@ btnReset.addEventListener('click', () => {
 
   currentSpeed = 0.0;
   maxSpeedKmh = 0.0;
+  maxGpsSpeedKmh = 0.0;
+  totalDisplacement = 0.0;
   totalRecordedTime = 0.0;
   lastTimestamp = null;
 
   speedValEl.textContent = "0.0";
+  gpsSpeedValEl.textContent = "0.0";
   maxSpeedValEl.textContent = "0.0";
+  gpsMaxSpeedValEl.textContent = "0.0";
+  distValEl.textContent = "0.0";
+  distUnitEl.textContent = "m";
   timerValEl.textContent = "0.0";
 });
 
@@ -707,21 +717,28 @@ lpfSlider.addEventListener('input', (e) => {
   lpfValEl.textContent = lpfAlpha.toFixed(2);
 });
 
-// --- 4. 歷史紀錄日誌與分頁系統 ---
-function addRecord(maxSpeed, duration) {
+// --- 5. 歷史紀錄日誌與分頁系統 ---
+function addRecord(maxSpeed, maxGpsSpeed, displacement, duration) {
   const timeStr = new Date().toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  
+  let dispStr = displacement >= 1000 
+    ? (displacement / 1000).toFixed(2) + " km" 
+    : displacement.toFixed(1) + " m";
+
   records.unshift({
     id: Date.now(),
     time: timeStr,
-    maxSpeed: maxSpeed.toFixed(1),
-    duration: duration.toFixed(1)
+    maxSpeed: maxSpeed.toFixed(1) + " km/h",
+    maxGpsSpeed: maxGpsSpeed > 0 ? maxGpsSpeed.toFixed(1) + " km/h" : "N/A",
+    disp: dispStr,
+    duration: duration.toFixed(1) + " s"
   });
   renderRecords();
 }
 
 function renderRecords() {
   if (records.length === 0) {
-    recordsTbody.innerHTML = `<tr><td colspan="4" class="placeholder-text">尚無觀測紀錄，按下 STOP 即自動存檔</td></tr>`;
+    recordsTbody.innerHTML = `<tr><td colspan="6" class="placeholder-text">尚無觀測紀錄，按下 STOP 即自動存檔</td></tr>`;
     btnPrevPage.disabled = true;
     btnNextPage.disabled = true;
     pageInfoEl.textContent = `第 1 / 1 頁`;
@@ -737,8 +754,10 @@ function renderRecords() {
   recordsTbody.innerHTML = pageRecords.map(r => `
     <tr>
       <td>${r.time}</td>
-      <td class="record-data-cell"><span class="record-badge badge-speed">${r.maxSpeed}</span></td>
-      <td>${r.duration} s</td>
+      <td class="record-data-cell"><span class="record-badge badge-gmeter">${r.maxSpeed}</span></td>
+      <td class="record-data-cell"><span class="record-badge badge-gps">${r.maxGpsSpeed}</span></td>
+      <td style="color: #3498db; font-weight: 600;">${r.disp}</td>
+      <td>${r.duration}</td>
       <td><button class="btn-delete" onclick="deleteRecord(${r.id})">刪除</button></td>
     </tr>
   `).join('');
