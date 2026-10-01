@@ -1,546 +1,615 @@
 ```html
 <!DOCTYPE html>
-<html lang="zh-TW" class="dark">
+<html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>加速度感測器即時速度積分器</title>
+    <title>Y軸加速度即時積分器 (Y-Axis Integration)</title>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js for real-time plotting -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        darkbg: '#0F172A',
-                        cardbg: '#1E293B',
-                        accentBlue: '#38BDF8',
-                        accentGreen: '#34D399',
-                        accentRed: '#F87171',
-                        accentPurple: '#A78BFA'
-                    }
-                }
-            }
-        }
-    </script>
     <style>
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: #0F172A;
-            color: #F8FAFC;
-            touch-action: manipulation;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            background-color: #0b0f19;
+            color: #f8fafc;
         }
-        /* Custom scrollbar for graph containers */
         ::-webkit-scrollbar {
             width: 6px;
             height: 6px;
         }
         ::-webkit-scrollbar-track {
-            background: #1E293B;
+            background: #0b0f19;
         }
         ::-webkit-scrollbar-thumb {
-            background: #475569;
+            background: #1e293b;
             border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #334155;
         }
     </style>
 </head>
-<body class="min-h-screen bg-darkbg text-slate-100 flex flex-col justify-between">
+<body class="min-h-screen flex flex-col justify-between p-3 sm:p-6">
 
-    <!-- Header Navigation -->
-    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50">
-        <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-            <div class="flex items-center space-x-3">
-                <div class="p-2 bg-sky-500/10 text-sky-400 rounded-xl">
-                    <i class="fa-solid fa-gauge-high text-xl"></i>
+    <div class="max-w-6xl mx-auto w-full space-y-6">
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-900/90 p-5 rounded-2xl border border-slate-800 shadow-2xl backdrop-blur-md">
+            <div>
+                <div class="flex items-center gap-2">
+                    <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">單軸模式 (Y-Axis)</span>
+                    <span id="hzDisplay" class="px-2.5 py-0.5 rounded-full text-xs font-mono bg-slate-800 text-slate-400">0 Hz</span>
                 </div>
-                <div>
-                    <h1 class="text-lg font-bold leading-tight">即時速度積分器</h1>
-                    <p class="text-xs text-slate-400">Accelerometer Velocity Integrator</p>
-                </div>
+                <h1 class="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 bg-clip-text text-transparent mt-1">
+                    Y 軸加速度即時積分器
+                </h1>
+                <p class="text-xs sm:text-sm text-slate-400 mt-1">
+                    專注於手機縱向 (Y 軸) 加速度 $a_y \rightarrow v_y \rightarrow d_y$ 的即時一重與二重數值積分
+                </p>
             </div>
-            <div id="sensorStatusBadge" class="flex items-center space-x-2 px-3 py-1 rounded-full text-xs font-medium bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                <span class="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
-                <span id="statusText">未連線</span>
-            </div>
-        </div>
-    </header>
-
-    <main class="max-w-5xl w-full mx-auto p-4 flex-grow space-y-4">
-
-        <!-- iOS Permission / Start Trigger Card -->
-        <div id="permissionCard" class="bg-gradient-to-r from-slate-800 to-slate-900 border border-slate-700 p-4 rounded-2xl shadow-xl flex flex-col md:flex-row items-center justify-between gap-4">
-            <div class="space-y-1 text-center md:text-left">
-                <h2 class="text-base font-semibold text-slate-200">感測器存取授權</h2>
-                <p class="text-xs text-slate-400">iOS (Safari) 與部分行動瀏覽器需要手動觸發權限以讀取運動感測器。</p>
-            </div>
-            <div class="flex items-center space-x-2 w-full md:w-auto">
-                <button id="startBtn" onclick="toggleTracking()" class="w-full md:w-auto px-6 py-2.5 bg-sky-500 hover:bg-sky-400 active:scale-95 text-slate-950 font-bold rounded-xl shadow-lg shadow-sky-500/20 transition-all duration-200 flex items-center justify-center space-x-2">
-                    <i class="fa-solid fa-play text-sm"></i>
-                    <span>啟動感測器</span>
+            
+            <!-- Controls Buttons -->
+            <div class="flex flex-wrap items-center gap-2 sm:gap-3 w-full md:w-auto">
+                <button id="permissionBtn" onclick="requestSensorPermission()" class="flex-1 md:flex-none px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-medium rounded-xl shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 text-sm">
+                    <i class="fa-solid fa-key"></i>
+                    授權感測器
+                </button>
+                <button id="toggleBtn" onclick="toggleTracking()" disabled class="flex-1 md:flex-none px-4 py-2.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white font-medium rounded-xl transition-all flex items-center justify-center gap-2 text-sm border border-slate-700">
+                    <i id="toggleIcon" class="fa-solid fa-play text-emerald-400"></i>
+                    <span id="toggleText">開始記錄</span>
+                </button>
+                <button id="calibrateBtn" onclick="startAutoCalibration()" class="px-4 py-2.5 bg-amber-600/80 hover:bg-amber-500 text-white font-medium rounded-xl transition-all flex items-center justify-center gap-2 text-sm shadow-md">
+                    <i class="fa-solid fa-bullseye"></i>
+                    3秒自動校準
+                </button>
+                <button onclick="resetIntegration()" class="px-4 py-2.5 bg-rose-600/80 hover:bg-rose-500 text-white font-medium rounded-xl transition-all flex items-center justify-center gap-2 text-sm shadow-md">
+                    <i class="fa-solid fa-rotate-left"></i>
+                    歸零
                 </button>
             </div>
-        </div>
+        </header>
 
-        <!-- Metric Speedometer & Real-time Gauges -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-            
-            <!-- Large Total Speed Display -->
-            <div class="md:col-span-1 bg-cardbg border border-slate-800 rounded-2xl p-5 flex flex-col justify-between items-center text-center relative overflow-hidden shadow-lg">
-                <div class="absolute -top-10 -left-10 w-32 h-32 bg-sky-500/5 rounded-full blur-2xl pointer-events-none"></div>
-                <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">當前合速度 (Speed)</span>
-                
-                <div class="my-4">
-                    <div id="speedDisplay" class="text-5xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-emerald-400 font-mono">
-                        0.00
-                    </div>
-                    <span class="text-xs text-slate-500 mt-1 block">m/s (米/秒)</span>
-                    <div id="speedKmhDisplay" class="text-sm font-medium text-slate-400 mt-1 font-mono">
-                        0.00 km/h
-                    </div>
+        <!-- Big Numerical Readouts -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <!-- Y Acceleration Card -->
+            <div class="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl shadow-xl relative overflow-hidden group">
+                <div class="absolute top-0 left-0 w-1.5 h-full bg-emerald-400"></div>
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                        <i class="fa-solid fa-gauge text-emerald-400"></i> Y 軸加速度 ($a_y$)
+                    </span>
+                    <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-800/40">m/s²</span>
                 </div>
-
-                <div class="w-full pt-3 border-t border-slate-800/80 flex justify-between text-xs text-slate-400">
-                    <span>採樣頻率:</span>
-                    <span id="hzDisplay" class="font-mono text-sky-400 font-medium">0 Hz</span>
+                <div class="flex items-baseline justify-between mt-2">
+                    <span id="accYDisplay" class="text-4xl font-extrabold font-mono text-emerald-300 tracking-tight">0.000</span>
+                    <span class="text-xs text-slate-500 font-mono">原始: <span id="rawAccYDisplay">0.00</span></span>
                 </div>
+                <p class="text-[11px] text-slate-500 mt-2">過濾與校準後之即時縱向加速度</p>
             </div>
 
-            <!-- Axis Velocity Breakdown -->
-            <div class="md:col-span-3 bg-cardbg border border-slate-800 rounded-2xl p-5 shadow-lg flex flex-col justify-between">
-                <div class="flex items-center justify-between mb-3">
-                    <h3 class="text-sm font-semibold text-slate-300">三軸分量數據 (Axes Decomposition)</h3>
-                    <div class="flex items-center space-x-3 text-xs">
-                        <span class="flex items-center gap-1 text-sky-400"><span class="w-2 h-2 rounded-full bg-sky-400"></span>X 軸</span>
-                        <span class="flex items-center gap-1 text-emerald-400"><span class="w-2 h-2 rounded-full bg-emerald-400"></span>Y 軸</span>
-                        <span class="flex items-center gap-1 text-purple-400"><span class="w-2 h-2 rounded-full bg-purple-400"></span>Z 軸</span>
+            <!-- Y Velocity Card -->
+            <div class="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl shadow-xl relative overflow-hidden group">
+                <div class="absolute top-0 left-0 w-1.5 h-full bg-cyan-400"></div>
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                        <i class="fa-solid fa-bolt text-cyan-400"></i> Y 軸即時速度 ($v_y$)
+                    </span>
+                    <div class="flex gap-1 text-[10px]">
+                        <button id="unitMsBtn" onclick="setVelUnit('ms')" class="px-2 py-0.5 rounded bg-cyan-500 text-slate-950 font-bold">m/s</button>
+                        <button id="unitKmhBtn" onclick="setVelUnit('kmh')" class="px-2 py-0.5 rounded bg-slate-800 text-slate-400 hover:text-slate-200">km/h</button>
                     </div>
                 </div>
-
-                <div class="grid grid-cols-3 gap-3 my-auto">
-                    <!-- X Axis -->
-                    <div class="bg-slate-900/60 border border-slate-800 rounded-xl p-3">
-                        <div class="text-xs text-slate-400 mb-1">Vx (左右)</div>
-                        <div id="vxVal" class="text-xl font-bold font-mono text-sky-400">0.00</div>
-                        <div class="text-[10px] text-slate-500 mt-1">Acc: <span id="axVal" class="font-mono">0.00</span> m/s²</div>
-                    </div>
-                    <!-- Y Axis -->
-                    <div class="bg-slate-900/60 border border-slate-800 rounded-xl p-3">
-                        <div class="text-xs text-slate-400 mb-1">Vy (前後)</div>
-                        <div id="vyVal" class="text-xl font-bold font-mono text-emerald-400">0.00</div>
-                        <div class="text-[10px] text-slate-500 mt-1">Acc: <span id="ayVal" class="font-mono">0.00</span> m/s²</div>
-                    </div>
-                    <!-- Z Axis -->
-                    <div class="bg-slate-900/60 border border-slate-800 rounded-xl p-3">
-                        <div class="text-xs text-slate-400 mb-1">Vz (上下)</div>
-                        <div id="vzVal" class="text-xl font-bold font-mono text-purple-400">0.00</div>
-                        <div class="text-[10px] text-slate-500 mt-1">Acc: <span id="azVal" class="font-mono">0.00</span> m/s²</div>
-                    </div>
+                <div class="flex items-baseline justify-between mt-2">
+                    <span id="velYDisplay" class="text-4xl font-extrabold font-mono text-cyan-300 tracking-tight">0.000</span>
+                    <span id="zuptBadge" class="text-[10px] px-2 py-0.5 rounded font-medium bg-slate-800 text-slate-400 border border-slate-700">動態中</span>
                 </div>
+                <p class="text-[11px] text-slate-500 mt-2">一重 trapezoidal 梯形積分 $v = \int a_y dt$</p>
+            </div>
 
-                <!-- Action Controls Bar -->
-                <div class="flex flex-wrap items-center justify-between gap-2 mt-4 pt-3 border-t border-slate-800">
-                    <div class="flex items-center space-x-2">
-                        <button onclick="calibrateZero()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-xs font-medium text-slate-200 rounded-lg border border-slate-700 transition flex items-center gap-1.5">
-                            <i class="fa-solid fa-crosshairs text-sky-400"></i>
-                            <span>校正歸零 (Zero Calibration)</span>
-                        </button>
-                        <button onclick="resetVelocity()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-xs font-medium text-amber-400 rounded-lg border border-slate-700 transition flex items-center gap-1.5">
-                            <i class="fa-solid fa-rotate-left"></i>
-                            <span>重置速度</span>
-                        </button>
-                    </div>
-
-                    <!-- Filter Control Toggle -->
-                    <div class="flex items-center space-x-2 bg-slate-900/80 px-3 py-1 rounded-lg border border-slate-800">
-                        <input type="checkbox" id="hpFilterToggle" checked class="rounded bg-slate-800 border-slate-700 text-sky-500 focus:ring-0">
-                        <label for="hpFilterToggle" class="text-xs text-slate-300 cursor-pointer select-none">啟用高通漂移漂除 (High-Pass Filter)</label>
-                    </div>
+            <!-- Y Displacement Card -->
+            <div class="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl shadow-xl relative overflow-hidden group">
+                <div class="absolute top-0 left-0 w-1.5 h-full bg-indigo-400"></div>
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                        <i class="fa-solid fa-arrows-up-down text-indigo-400"></i> Y 軸估算位移 ($d_y$)
+                    </span>
+                    <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-950/60 text-indigo-400 border border-indigo-800/40">公尺 (m)</span>
                 </div>
+                <div class="flex items-baseline justify-between mt-2">
+                    <span id="posYDisplay" class="text-4xl font-extrabold font-mono text-indigo-300 tracking-tight">0.000</span>
+                    <span id="peakVelDisplay" class="text-xs text-slate-500 font-mono">峰值速度: 0.00</span>
+                </div>
+                <p class="text-[11px] text-slate-500 mt-2">二重積分 $d = \int v_y dt$ (注意：IMU 二次積分極易發散)</p>
             </div>
         </div>
 
-        <!-- Charting Section -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            
-            <!-- Velocity Chart -->
-            <div class="bg-cardbg border border-slate-800 rounded-2xl p-4 shadow-lg flex flex-col">
-                <div class="flex items-center justify-between mb-2">
-                    <h3 class="text-sm font-semibold text-slate-300 flex items-center gap-2">
-                        <i class="fa-solid fa-chart-line text-sky-400"></i>
-                        <span>即時速度變化曲線 (Velocity m/s)</span>
-                    </h3>
+        <!-- Calibration Overlay Modal (Hidden by default) -->
+        <div id="calibrationModal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+            <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl max-w-sm w-full text-center space-y-4 shadow-2xl">
+                <div class="w-12 h-12 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center mx-auto text-xl">
+                    <i class="fa-solid fa-compass-drafting animate-spin"></i>
                 </div>
-                <div class="relative w-full h-60">
-                    <canvas id="velocityChart"></canvas>
+                <div>
+                    <h3 class="text-lg font-bold text-slate-100">正在進行 3 秒靜止校準</h3>
+                    <p class="text-xs text-slate-400 mt-1">請將手機固定靜止在平面上，系統正計算 Y 軸偏置零點 (Zero-Bias Offset)...</p>
                 </div>
+                <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                    <div id="calibrationProgress" class="bg-amber-400 h-full w-0 transition-all duration-300"></div>
+                </div>
+                <span id="calibrationCount" class="text-xs font-mono text-amber-400 font-bold block">剩餘 3.0 秒</span>
             </div>
-
-            <!-- Acceleration Chart -->
-            <div class="bg-cardbg border border-slate-800 rounded-2xl p-4 shadow-lg flex flex-col">
-                <div class="flex items-center justify-between mb-2">
-                    <h3 class="text-sm font-semibold text-slate-300 flex items-center gap-2">
-                        <i class="fa-solid fa-wave-square text-emerald-400"></i>
-                        <span>線加速度數據 (Linear Acceleration m/s²)</span>
-                    </h3>
-                </div>
-                <div class="relative w-full h-60">
-                    <canvas id="accelChart"></canvas>
-                </div>
-            </div>
-
         </div>
 
-        <!-- Settings & Algorithm Explanation Modal/Panel -->
-        <div class="bg-cardbg border border-slate-800 rounded-2xl p-4 text-xs text-slate-400 space-y-2">
-            <h4 class="font-semibold text-slate-300 flex items-center gap-1.5">
-                <i class="fa-solid fa-circle-info text-sky-400"></i>
-                <span>物理積分與濾波說明 (Physics Integration Note)</span>
-            </h4>
-            <p class="leading-relaxed">
-                本系統優先使用裝置提供的 <code class="bg-slate-800 px-1 py-0.5 rounded text-sky-300">accelerationIncludingGravity</code> 或 <code class="bg-slate-800 px-1 py-0.5 rounded text-sky-300">acceleration</code> 數據。採用梯形法 (Trapezoidal Rule) 針對時域差異 <code class="bg-slate-800 px-1 py-0.5 rounded text-sky-300">dt</code> 進行連續數值積分：
-                <span class="font-mono text-slate-200">v(t) = v(t-1) + 0.5 × (a(t) + a(t-1)) × dt</span>。
-            </p>
-            <p class="leading-relaxed">
-                由於消費級手機 IMU 感測器存在雜訊與零點漂移 (Zero-drift)，長時間積分會導致速度無限累加。啟用「高通濾波」與「零速修正 (Zero Velocity Update)」能顯著減緩漂移問題。
-            </p>
+        <!-- Drift Filter Controls -->
+        <div class="bg-slate-900/90 border border-slate-800 p-5 rounded-2xl shadow-xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h2 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                    <i class="fa-solid fa-sliders text-emerald-400"></i> Y 軸訊號過濾與漂移抑制參數
+                </h2>
+                <span id="currentOffsetDisplay" class="text-xs font-mono text-amber-400">零位校準值 Offset: 0.0000 m/s²</span>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- High-Pass Filter -->
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center">
+                        <label class="text-xs font-semibold text-slate-300 flex items-center gap-2">
+                            <input type="checkbox" id="hpToggle" checked class="rounded bg-slate-950 border-slate-800 text-emerald-500 focus:ring-emerald-500">
+                            高通濾波器 (High-Pass Filter)
+                        </label>
+                        <span id="hpAlphaVal" class="text-xs font-mono text-emerald-400">α = 0.88</span>
+                    </div>
+                    <input type="range" id="hpSlider" min="0.50" max="0.99" step="0.01" value="0.88" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-400">
+                    <p class="text-[11px] text-slate-400">消除重力分量殘留與低頻直流（DC）偏移漂移。</p>
+                </div>
+
+                <!-- Noise Threshold Deadzone -->
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center">
+                        <label class="text-xs font-semibold text-slate-300 flex items-center gap-2">
+                            <input type="checkbox" id="noiseToggle" checked class="rounded bg-slate-950 border-slate-800 text-emerald-500 focus:ring-emerald-500">
+                            雜訊門檻死區 (Deadzone)
+                        </label>
+                        <span id="noiseThreshVal" class="text-xs font-mono text-emerald-400">0.12 m/s²</span>
+                    </div>
+                    <input type="range" id="noiseSlider" min="0.02" max="0.60" step="0.01" value="0.12" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-400">
+                    <p class="text-[11px] text-slate-400">當 $a_y$ 小於此數值時視為環境微震，自動歸零。</p>
+                </div>
+
+                <!-- ZUPT Control -->
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center">
+                        <label class="text-xs font-semibold text-slate-300 flex items-center gap-2">
+                            <input type="checkbox" id="zuptToggle" checked class="rounded bg-slate-950 border-slate-800 text-emerald-500 focus:ring-emerald-500">
+                            零速度更新 (ZUPT)
+                        </label>
+                        <span id="zuptVal" class="text-xs font-mono text-emerald-400">靜止 0.25s 歸零</span>
+                    </div>
+                    <input type="range" id="zuptSlider" min="0.10" max="1.00" step="0.05" value="0.25" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-400">
+                    <p class="text-[11px] text-slate-400">檢測到加速度持續低於死區時，強制將速度拉回 0。</p>
+                </div>
+            </div>
         </div>
 
-    </main>
+        <!-- Combined Chart Display -->
+        <div class="bg-slate-900/90 border border-slate-800 p-5 rounded-2xl shadow-xl space-y-3">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                    <i class="fa-solid fa-chart-line text-emerald-400"></i> Y 軸動態波形對照圖 (Y-Axis Synchronized Waveforms)
+                </h3>
+                <div class="flex items-center gap-4 text-xs font-mono">
+                    <span class="flex items-center gap-1.5 text-emerald-400"><span class="w-2.5 h-0.5 bg-emerald-400 inline-block"></span> $a_y$ (m/s²)</span>
+                    <span class="flex items-center gap-1.5 text-cyan-400"><span class="w-2.5 h-0.5 bg-cyan-400 inline-block"></span> $v_y$ (m/s)</span>
+                    <span class="flex items-center gap-1.5 text-indigo-400"><span class="w-2.5 h-0.5 bg-indigo-400 inline-block"></span> $d_y$ (m)</span>
+                </div>
+            </div>
+            <div class="h-64 sm:h-80 w-full relative">
+                <canvas id="yAxisChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Theoretical & Educational Info Box -->
+        <div class="bg-slate-900/60 border border-slate-800 p-5 rounded-2xl space-y-3">
+            <h3 class="text-sm font-bold text-teal-300 flex items-center gap-2">
+                <i class="fa-solid fa-graduation-cap"></i> 物理原理與二重積分漂移 (Double Integration Drift) 說明
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-slate-300 leading-relaxed">
+                <div class="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800/80 space-y-1">
+                    <span class="font-bold text-emerald-400 block">1. 梯形積分 (Trapezoidal Rule)</span>
+                    <p class="text-slate-400">速度計算式為 $v_k = v_{k-1} + \frac{a_k + a_{k-1}}{2} \cdot \Delta t$。每次採樣取當前與前一刻加速度之平均進行數值積分。</p>
+                </div>
+                <div class="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800/80 space-y-1">
+                    <span class="font-bold text-amber-400 block">2. 漂移發散 (Error Accumulation)</span>
+                    <p class="text-slate-400">手機 IMU 存在微小白雜訊與 Bias。加速度的常數誤差經過一次積分會造成速度線性漂移 ($\propto t$)，二次積分更會導致位移二次方發散 ($\propto t^2$)。</p>
+                </div>
+                <div class="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800/80 space-y-1">
+                    <span class="font-bold text-cyan-400 block">3. 修正機制 (ZUPT & High-Pass)</span>
+                    <p class="text-slate-400">高通濾波可過濾慢速基線偏移；Zero-Velocity Update (ZUPT) 則利用手機停頓靜止的瞬間，將速度強行歸零以切斷累積誤差。</p>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Footer -->
-    <footer class="border-t border-slate-800 py-3 text-center text-xs text-slate-500">
-        HTML5 DeviceMotionEvent API Velocity Integrator
+    <footer class="text-center text-xs text-slate-500 py-4 mt-6">
+        Single Y-Axis Motion Tracker • Powered by DeviceMotionEvent & Chart.js
     </footer>
 
     <script>
-        // Global Application State Variables
+        // System & Sensor States
         let isTracking = false;
-        let lastTimestamp = null;
-
-        // Acceleration state
-        let rawAcc = { x: 0, y: 0, z: 0 };
-        let filteredAcc = { x: 0, y: 0, z: 0 };
-        let prevAcc = { x: 0, y: 0, z: 0 };
-
-        // Velocity state
-        let velocity = { x: 0, y: 0, z: 0 };
-
-        // Calibration Offsets (Zero Baseline)
-        let offsetAcc = { x: 0, y: 0, z: 0 };
-
-        // High pass filter parameter (Alpha)
-        const ALPHA = 0.85; 
-
-        // Dynamic Sampling Rate calculation
+        let lastTimestamp = 0;
         let sampleCount = 0;
-        let lastHzCheck = performance.now();
-        let currentHz = 0;
+        let lastHzTime = performance.now();
+        let velUnit = 'ms'; // 'ms' or 'kmh'
 
-        // Chart Data Buffers (Max points)
-        const MAX_DATA_POINTS = 50;
-        const chartLabels = Array(MAX_DATA_POINTS).fill('');
-        const velDataX = Array(MAX_DATA_POINTS).fill(0);
-        const velDataY = Array(MAX_DATA_POINTS).fill(0);
-        const velDataZ = Array(MAX_DATA_POINTS).fill(0);
+        // Single Y-Axis Kinematic Variables
+        let rawAccY = 0;
+        let yOffset = 0;
+        let filteredAccY = 0;
+        let prevFilteredAccY = 0;
+        let prevRawAccY = 0;
 
-        const accDataX = Array(MAX_DATA_POINTS).fill(0);
-        const accDataY = Array(MAX_DATA_POINTS).fill(0);
-        const accDataZ = Array(MAX_DATA_POINTS).fill(0);
+        let velY = 0;
+        let posY = 0;
+        let peakVelY = 0;
 
-        // Chart Objects
-        let velocityChart = null;
-        let accelChart = null;
+        // ZUPT quiet timer
+        let quietTimer = 0;
 
-        // UI Element References
-        const startBtn = document.getElementById('startBtn');
-        const statusText = document.getElementById('statusText');
-        const sensorStatusBadge = document.getElementById('sensorStatusBadge');
+        // Calibration variables
+        let isCalibrating = false;
+        let calibSamples = [];
+        let calibTimerInterval = null;
 
-        const speedDisplay = document.getElementById('speedDisplay');
-        const speedKmhDisplay = document.getElementById('speedKmhDisplay');
-        const hzDisplay = document.getElementById('hzDisplay');
+        // Max points on Chart
+        const MAX_POINTS = 60;
+        let yChart;
 
-        const vxVal = document.getElementById('vxVal');
-        const vyVal = document.getElementById('vyVal');
-        const vzVal = document.getElementById('vzVal');
+        // DOM Elements
+        const permissionBtn = document.getElementById('permissionBtn');
+        const toggleBtn = document.getElementById('toggleBtn');
+        const toggleIcon = document.getElementById('toggleIcon');
+        const toggleText = document.getElementById('toggleText');
 
-        const axVal = document.getElementById('axVal');
-        const ayVal = document.getElementById('ayVal');
-        const azVal = document.getElementById('azVal');
+        function initChart() {
+            const ctx = document.getElementById('yAxisChart').getContext('2d');
+            const labels = Array(MAX_POINTS).fill('');
 
-        const hpFilterToggle = document.getElementById('hpFilterToggle');
-
-        window.onload = function() {
-            initCharts();
-        };
-
-        function initCharts() {
-            const chartOptions = {
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: false,
-                scales: {
-                    x: { display: false },
-                    y: {
-                        grid: { color: '#334155' },
-                        ticks: { color: '#94A3B8', font: { family: 'monospace', size: 10 } }
-                    }
+            yChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Y加速度 (m/s²)',
+                            borderColor: '#34d399',
+                            backgroundColor: 'rgba(52, 211, 153, 0.05)',
+                            data: Array(MAX_POINTS).fill(0),
+                            yAxisID: 'yAcc',
+                            borderWidth: 1.8,
+                            fill: true
+                        },
+                        {
+                            label: 'Y速度 (m/s)',
+                            borderColor: '#22d3ee',
+                            data: Array(MAX_POINTS).fill(0),
+                            yAxisID: 'yVel',
+                            borderWidth: 2
+                        },
+                        {
+                            label: 'Y位移 (m)',
+                            borderColor: '#818cf8',
+                            data: Array(MAX_POINTS).fill(0),
+                            yAxisID: 'yPos',
+                            borderWidth: 2,
+                            borderDash: [4, 4]
+                        }
+                    ]
                 },
-                plugins: {
-                    legend: { display: false }
-                },
-                elements: {
-                    line: { tension: 0.2, borderWidth: 2 },
-                    point: { radius: 0 }
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    interaction: { intersect: false, mode: 'index' },
+                    scales: {
+                        x: { display: false },
+                        yAcc: {
+                            type: 'linear',
+                            position: 'left',
+                            grid: { color: '#1e293b' },
+                            ticks: { color: '#34d399', font: { size: 10 } },
+                            title: { display: true, text: 'Acc (m/s²)', color: '#34d399', font: { size: 10 } }
+                        },
+                        yVel: {
+                            type: 'linear',
+                            position: 'right',
+                            grid: { drawOnChartArea: false },
+                            ticks: { color: '#22d3ee', font: { size: 10 } },
+                            title: { display: true, text: 'Vel (m/s)', color: '#22d3ee', font: { size: 10 } }
+                        },
+                        yPos: {
+                            type: 'linear',
+                            position: 'right',
+                            grid: { drawOnChartArea: false },
+                            ticks: { color: '#818cf8', font: { size: 10 } },
+                            title: { display: true, text: 'Pos (m)', color: '#818cf8', font: { size: 10 } }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    elements: { point: { radius: 0 }, line: { tension: 0.15 } }
                 }
-            };
-
-            // Initialize Velocity Chart
-            const ctxVel = document.getElementById('velocityChart').getContext('2d');
-            velocityChart = new Chart(ctxVel, {
-                type: 'line',
-                data: {
-                    labels: chartLabels,
-                    datasets: [
-                        { label: 'Vx', data: velDataX, borderColor: '#38BDF8', backgroundColor: 'transparent' },
-                        { label: 'Vy', data: velDataY, borderColor: '#34D399', backgroundColor: 'transparent' },
-                        { label: 'Vz', data: velDataZ, borderColor: '#A78BFA', backgroundColor: 'transparent' }
-                    ]
-                },
-                options: chartOptions
-            });
-
-            // Initialize Acceleration Chart
-            const ctxAcc = document.getElementById('accelChart').getContext('2d');
-            accelChart = new Chart(ctxAcc, {
-                type: 'line',
-                data: {
-                    labels: chartLabels,
-                    datasets: [
-                        { label: 'Ax', data: accDataX, borderColor: '#38BDF8', backgroundColor: 'transparent' },
-                        { label: 'Ay', data: accDataY, borderColor: '#34D399', backgroundColor: 'transparent' },
-                        { label: 'Az', data: accDataZ, borderColor: '#A78BFA', backgroundColor: 'transparent' }
-                    ]
-                },
-                options: chartOptions
             });
         }
 
-        async function toggleTracking() {
-            if (isTracking) {
-                stopTracking();
-                return;
-            }
-
-            // Check for iOS 13+ permission requirement
+        async function requestSensorPermission() {
             if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
                 try {
                     const permissionState = await DeviceMotionEvent.requestPermission();
                     if (permissionState === 'granted') {
-                        startTracking();
+                        permissionBtn.classList.add('hidden');
+                        toggleBtn.disabled = false;
+                        alert('成功存取手機加速度感測器！');
                     } else {
-                        alert('無法取得感測器存取權限！');
+                        alert('存取權限被拒絕。');
                     }
                 } catch (error) {
-                    console.error('Permission Request Error:', error);
-                    alert('權限請求失敗: ' + error.message);
+                    console.error('Permission error:', error);
+                    alert('要求權限時發生錯誤: ' + error.message);
                 }
+            } else if (window.DeviceMotionEvent) {
+                permissionBtn.classList.add('hidden');
+                toggleBtn.disabled = false;
             } else {
-                // Standard browser API
-                if ('DeviceMotionEvent' in window) {
-                    startTracking();
-                } else {
-                    alert('您的裝置或瀏覽器不支援 DeviceMotionEvent API。');
-                }
+                alert('您的瀏覽器或裝置不支援 DeviceMotionEvent。');
+            }
+        }
+
+        function toggleTracking() {
+            if (!isTracking) {
+                startTracking();
+            } else {
+                stopTracking();
             }
         }
 
         function startTracking() {
             isTracking = true;
-            window.addEventListener('devicemotion', handleMotionEvent, true);
-
-            // Update UI State
-            startBtn.classList.remove('bg-sky-500', 'hover:bg-sky-400', 'shadow-sky-500/20');
-            startBtn.classList.add('bg-rose-500', 'hover:bg-rose-400', 'shadow-rose-500/20');
-            startBtn.innerHTML = `<i class="fa-solid fa-stop text-sm"></i><span>停止監測</span>`;
-
-            sensorStatusBadge.classList.remove('bg-rose-500/10', 'text-rose-400', 'border-rose-500/20');
-            sensorStatusBadge.classList.add('bg-emerald-500/10', 'text-emerald-400', 'border-emerald-500/20');
-            sensorStatusBadge.querySelector('span').classList.remove('bg-rose-500');
-            sensorStatusBadge.querySelector('span').classList.add('bg-emerald-500');
-            statusText.innerText = '運作中 (Active)';
-
             lastTimestamp = performance.now();
-            resetVelocity();
+            window.addEventListener('devicemotion', handleMotion, true);
+
+            toggleIcon.className = 'fa-solid fa-pause text-amber-400';
+            toggleText.innerText = '暫停記錄';
         }
 
         function stopTracking() {
             isTracking = false;
-            window.removeEventListener('devicemotion', handleMotionEvent, true);
+            window.removeEventListener('devicemotion', handleMotion, true);
 
-            // Update UI State
-            startBtn.classList.remove('bg-rose-500', 'hover:bg-rose-400', 'shadow-rose-500/20');
-            startBtn.classList.add('bg-sky-500', 'hover:bg-sky-400', 'shadow-sky-500/20');
-            startBtn.innerHTML = `<i class="fa-solid fa-play text-sm"></i><span>啟動感測器</span>`;
-
-            sensorStatusBadge.classList.remove('bg-emerald-500/10', 'text-emerald-400', 'border-emerald-500/20');
-            sensorStatusBadge.classList.add('bg-rose-500/10', 'text-rose-400', 'border-rose-500/20');
-            sensorStatusBadge.querySelector('span').classList.remove('bg-emerald-500');
-            sensorStatusBadge.querySelector('span').classList.add('bg-rose-500');
-            statusText.innerText = '已停止';
-
-            hzDisplay.innerText = '0 Hz';
+            toggleIcon.className = 'fa-solid fa-play text-emerald-400';
+            toggleText.innerText = '開始記錄';
         }
 
-        function handleMotionEvent(event) {
+        function handleMotion(event) {
+            if (!isTracking) return;
+
             const now = performance.now();
-            if (!lastTimestamp) lastTimestamp = now;
-            const dt = (now - lastTimestamp) / 1000; // Convert milliseconds to seconds
+            let dt = (now - lastTimestamp) / 1000;
             lastTimestamp = now;
 
-            // Calculate Hz
+            if (dt <= 0 || dt > 0.5) dt = 0.016; // Fallback to ~60Hz if glitch
+
+            // Hz Counter
             sampleCount++;
-            if (now - lastHzCheck >= 1000) {
-                currentHz = Math.round((sampleCount * 1000) / (now - lastHzCheck));
-                hzDisplay.innerText = `${currentHz} Hz`;
+            if (now - lastHzTime >= 1000) {
+                const hz = Math.round((sampleCount * 1000) / (now - lastHzTime));
+                document.getElementById('hzDisplay').innerText = `${hz} Hz`;
                 sampleCount = 0;
-                lastHzCheck = now;
+                lastHzTime = now;
             }
 
-            // Prefer linear acceleration (excluding gravity) if device hardware supports it
-            let acc = event.acceleration;
-            if (!acc || (acc.x === null && acc.y === null && acc.z === null)) {
-                // Fallback to acceleration including gravity
-                acc = event.accelerationIncludingGravity;
+            // Get Acceleration (prefer linear acceleration without gravity if available)
+            const acc = event.acceleration || event.accelerationIncludingGravity;
+            if (!acc || acc.y === null || acc.y === undefined) return;
+
+            // Extract Raw Y-axis value
+            let rawY = acc.y;
+
+            // If performing calibration sampling
+            if (isCalibrating) {
+                calibSamples.push(rawY);
+                return;
             }
 
-            if (!acc || acc.x === null) return;
+            // Subtract zero-offset calibration
+            rawAccY = rawY - yOffset;
 
-            // Raw input with zero offset adjustment
-            rawAcc.x = (acc.x || 0) - offsetAcc.x;
-            rawAcc.y = (acc.y || 0) - offsetAcc.y;
-            rawAcc.z = (acc.z || 0) - offsetAcc.z;
+            // 1. High-Pass Filter processing
+            const hpEnabled = document.getElementById('hpToggle').checked;
+            const alpha = parseFloat(document.getElementById('hpSlider').value);
+            document.getElementById('hpAlphaVal').innerText = `α = ${alpha}`;
 
-            // Noise thresholding (Deadzone) to prevent micro-noise accumulation
-            const DEADZONE = 0.08; // m/s²
-            let cleanX = Math.abs(rawAcc.x) < DEADZONE ? 0 : rawAcc.x;
-            let cleanY = Math.abs(rawAcc.y) < DEADZONE ? 0 : rawAcc.y;
-            let cleanZ = Math.abs(rawAcc.z) < DEADZONE ? 0 : rawAcc.z;
-
-            // Apply High-Pass Filtering if enabled to filter out static gravity leakage / slow drift
-            if (hpFilterToggle.checked) {
-                filteredAcc.x = ALPHA * (filteredAcc.x + cleanX - prevAcc.x);
-                filteredAcc.y = ALPHA * (filteredAcc.y + cleanY - prevAcc.y);
-                filteredAcc.z = ALPHA * (filteredAcc.z + cleanZ - prevAcc.z);
-
-                prevAcc.x = cleanX;
-                prevAcc.y = cleanY;
-                prevAcc.z = cleanZ;
+            if (hpEnabled) {
+                filteredAccY = alpha * (prevFilteredAccY + rawAccY - prevRawAccY);
+                prevRawAccY = rawAccY;
+                prevFilteredAccY = filteredAccY;
             } else {
-                filteredAcc.x = cleanX;
-                filteredAcc.y = cleanY;
-                filteredAcc.z = cleanZ;
+                filteredAccY = rawAccY;
             }
 
-            // Perform Numerical Integration (Trapezoidal Method) for Velocity: v = v + a * dt
-            if (dt > 0 && dt < 0.5) { // Protect against abnormal frame pauses
-                velocity.x += filteredAcc.x * dt;
-                velocity.y += filteredAcc.y * dt;
-                velocity.z += filteredAcc.z * dt;
+            // 2. Deadzone Noise Threshold
+            const noiseEnabled = document.getElementById('noiseToggle').checked;
+            const threshold = parseFloat(document.getElementById('noiseSlider').value);
+            document.getElementById('noiseThreshVal').innerText = `${threshold.toFixed(2)} m/s²`;
 
-                // Simple Zero Velocity Update (ZUPT) heuristic when completely still
-                if (cleanX === 0 && cleanY === 0 && cleanZ === 0) {
-                    velocity.x *= 0.92; // Damping
-                    velocity.y *= 0.92;
-                    velocity.z *= 0.92;
+            let accForIntegration = filteredAccY;
+            if (noiseEnabled && Math.abs(accForIntegration) < threshold) {
+                accForIntegration = 0;
+            }
+
+            // 3. Trapezoidal Integration for Velocity: v = v_prev + (a_prev + a_curr)/2 * dt
+            let prevVelY = velY;
+            velY += accForIntegration * dt;
+
+            // 4. Zero Velocity Update (ZUPT)
+            const zuptEnabled = document.getElementById('zuptToggle').checked;
+            const zuptDuration = parseFloat(document.getElementById('zuptSlider').value);
+            document.getElementById('zuptVal').innerText = `靜止 ${zuptDuration.toFixed(2)}s 歸零`;
+
+            if (Math.abs(accForIntegration) === 0) {
+                quietTimer += dt;
+            } else {
+                quietTimer = 0;
+            }
+
+            const zuptBadge = document.getElementById('zuptBadge');
+            if (zuptEnabled && quietTimer >= zuptDuration) {
+                velY = 0;
+                zuptBadge.innerText = 'ZUPT 鎖定中';
+                zuptBadge.className = 'text-[10px] px-2 py-0.5 rounded font-medium bg-emerald-950 text-emerald-400 border border-emerald-800';
+            } else {
+                zuptBadge.innerText = '動態中';
+                zuptBadge.className = 'text-[10px] px-2 py-0.5 rounded font-medium bg-slate-800 text-slate-400 border border-slate-700';
+            }
+
+            // Peak velocity tracking
+            if (Math.abs(velY) > Math.abs(peakVelY)) {
+                peakVelY = velY;
+            }
+
+            // 5. Integration for Displacement: d = d_prev + (v_prev + v_curr)/2 * dt
+            posY += ((prevVelY + velY) / 2) * dt;
+
+            // UI Refresh
+            updateReadouts(accForIntegration, rawY);
+            updateChartData(accForIntegration, velY, posY);
+        }
+
+        function updateReadouts(cleanAcc, rawY) {
+            document.getElementById('accYDisplay').innerText = cleanAcc.toFixed(3);
+            document.getElementById('rawAccYDisplay').innerText = rawY.toFixed(2);
+
+            // Velocity Unit conversion
+            let displayVel = velY;
+            if (velUnit === 'kmh') {
+                displayVel = velY * 3.6;
+            }
+            document.getElementById('velYDisplay').innerText = displayVel.toFixed(3);
+            document.getElementById('peakVelDisplay').innerText = `峰值: ${peakVelY.toFixed(2)} m/s`;
+
+            document.getElementById('posYDisplay').innerText = posY.toFixed(3);
+        }
+
+        function updateChartData(acc, vel, pos) {
+            const datasets = yChart.data.datasets;
+
+            datasets[0].data.push(acc);
+            datasets[1].data.push(vel);
+            datasets[2].data.push(pos);
+
+            if (datasets[0].data.length > MAX_POINTS) {
+                datasets[0].data.shift();
+                datasets[1].data.shift();
+                datasets[2].data.shift();
+            }
+
+            yChart.update('none');
+        }
+
+        function setVelUnit(unit) {
+            velUnit = unit;
+            const msBtn = document.getElementById('unitMsBtn');
+            const kmhBtn = document.getElementById('unitKmhBtn');
+
+            if (unit === 'ms') {
+                msBtn.className = 'px-2 py-0.5 rounded bg-cyan-500 text-slate-950 font-bold';
+                kmhBtn.className = 'px-2 py-0.5 rounded bg-slate-800 text-slate-400 hover:text-slate-200';
+            } else {
+                kmhBtn.className = 'px-2 py-0.5 rounded bg-cyan-500 text-slate-950 font-bold';
+                msBtn.className = 'px-2 py-0.5 rounded bg-slate-800 text-slate-400 hover:text-slate-200';
+            }
+        }
+
+        function startAutoCalibration() {
+            if (!isTracking) {
+                alert('請先點擊「開始記錄」開啟感測器後再實施校準。');
+                return;
+            }
+
+            isCalibrating = true;
+            calibSamples = [];
+
+            const modal = document.getElementById('calibrationModal');
+            const progressBar = document.getElementById('calibrationProgress');
+            const countText = document.getElementById('calibrationCount');
+
+            modal.classList.remove('hidden');
+            progressBar.style.width = '0%';
+
+            let timeLeft = 3.0;
+            const startTime = performance.now();
+
+            calibTimerInterval = setInterval(() => {
+                const elapsed = (performance.now() - startTime) / 1000;
+                timeLeft = Math.max(0, 3.0 - elapsed);
+
+                const pct = Math.min(100, (elapsed / 3.0) * 100);
+                progressBar.style.width = `${pct}%`;
+                countText.innerText = `剩餘 ${timeLeft.toFixed(1)} 秒`;
+
+                if (elapsed >= 3.0) {
+                    clearInterval(calibTimerInterval);
+                    finishCalibration();
+                }
+            }, 50);
+        }
+
+        function finishCalibration() {
+            isCalibrating = false;
+            document.getElementById('calibrationModal').classList.add('hidden');
+
+            if (calibSamples.length > 0) {
+                const sum = calibSamples.reduce((a, b) => a + b, 0);
+                yOffset = sum / calibSamples.length;
+                document.getElementById('currentOffsetDisplay').innerText = `零位校準值 Offset: ${yOffset.toFixed(4)} m/s²`;
+                resetIntegration();
+                alert(`3 秒校準完成！平均靜止偏差為 ${yOffset.toFixed(4)} m/s²，已進行補償處理。`);
+            } else {
+                alert('校準失敗：未能收集到足夠的感測器數據。');
+            }
+        }
+
+        function resetIntegration() {
+            velY = 0;
+            posY = 0;
+            peakVelY = 0;
+            quietTimer = 0;
+            prevFilteredAccY = 0;
+            prevRawAccY = 0;
+
+            updateReadouts(0, rawAccY);
+
+            // Clear Chart
+            yChart.data.datasets.forEach(ds => ds.data = Array(MAX_POINTS).fill(0));
+            yChart.update();
+        }
+
+        window.onload = function() {
+            initChart();
+
+            // Auto-check if permission button is needed
+            if (typeof DeviceMotionEvent === 'undefined' || typeof DeviceMotionEvent.requestPermission !== 'function') {
+                if (window.DeviceMotionEvent) {
+                    permissionBtn.classList.add('hidden');
+                    toggleBtn.disabled = false;
                 }
             }
-
-            // Compute overall speed magnitude
-            const speedMagnitude = Math.sqrt(
-                velocity.x * velocity.x +
-                velocity.y * velocity.y +
-                velocity.z * velocity.z
-            );
-
-            // Update UI Readouts & Charts
-            updateDisplay(speedMagnitude);
-        }
-
-        function updateDisplay(speed) {
-            // Velocity components
-            vxVal.innerText = velocity.x.toFixed(2);
-            vyVal.innerText = velocity.y.toFixed(2);
-            vzVal.innerText = velocity.z.toFixed(2);
-
-            // Acceleration components
-            axVal.innerText = filteredAcc.x.toFixed(2);
-            ayVal.innerText = filteredAcc.y.toFixed(2);
-            azVal.innerText = filteredAcc.z.toFixed(2);
-
-            // Total speed
-            speedDisplay.innerText = speed.toFixed(2);
-            speedKmhDisplay.innerText = `${(speed * 3.6).toFixed(2)} km/h`;
-
-            // Push data into chart buffers
-            velDataX.push(velocity.x);
-            velDataX.shift();
-            velDataY.push(velocity.y);
-            velDataY.shift();
-            velDataZ.push(velocity.z);
-            velDataZ.shift();
-
-            accDataX.push(filteredAcc.x);
-            accDataX.shift();
-            accDataY.push(filteredAcc.y);
-            accDataY.shift();
-            accDataZ.push(filteredAcc.z);
-            accDataZ.shift();
-
-            // Re-render chart instances
-            if (velocityChart) velocityChart.update();
-            if (accelChart) accelChart.update();
-        }
-
-        function calibrateZero() {
-            // Set current acceleration bias as static baseline
-            offsetAcc.x += rawAcc.x;
-            offsetAcc.y += rawAcc.y;
-            offsetAcc.z += rawAcc.z;
-
-            resetVelocity();
-
-            // Visual notification trigger
-            statusText.innerText = '已校正歸零';
-            setTimeout(() => {
-                if (isTracking) statusText.innerText = '運作中 (Active)';
-            }, 1500);
-        }
-
-        function resetVelocity() {
-            velocity = { x: 0, y: 0, z: 0 };
-            filteredAcc = { x: 0, y: 0, z: 0 };
-            prevAcc = { x: 0, y: 0, z: 0 };
-
-            // Clear chart datasets
-            velDataX.fill(0);
-            velDataY.fill(0);
-            velDataZ.fill(0);
-            accDataX.fill(0);
-            accDataY.fill(0);
-            accDataZ.fill(0);
-
-            if (velocityChart) velocityChart.update();
-            if (accelChart) accelChart.update();
-
-            speedDisplay.innerText = '0.00';
-            speedKmhDisplay.innerText = '0.00 km/h';
-            vxVal.innerText = '0.00';
-            vyVal.innerText = '0.00';
-            vzVal.innerText = '0.00';
-        }
+        };
     </script>
 </body>
 </html>
