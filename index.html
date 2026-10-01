@@ -1,9 +1,21 @@
 <!DOCTYPE html>
+<html lang="en">
+
+  <head>
+    <meta charset="UTF-8">
+    <title>加速度積分 1.0</title>
+    
+
+  </head>
+    
+  <body>
+  <!DOCTYPE html>
+<body>
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>地下段列車 G-meter & GPS 雙模測速儀</title>
+  <title>加速度積分 與 GPS測速器</title>
   <style>
   /* --- 基礎設定 --- */
   * { box-sizing: border-box; }
@@ -55,16 +67,18 @@
 
   input:focus { border-color: #ff9800; }
 
+  /* 核心錄製按鈕 (寬度比重設為 1.3，防止文字換行) */
   .calc-btn { 
-    flex: 1; 
+    flex: 1.3; 
     background: #ff9800; 
     color: #121212; 
     border: none; 
-    padding: 12px; 
+    padding: 12px 6px; 
     border-radius: 8px; 
     font-weight: bold; 
     cursor: pointer; 
-    font-size: 0.9rem;
+    font-size: 0.88rem;
+    white-space: nowrap;
   }
 
   .calc-btn:hover { background: #e68a00; }
@@ -75,11 +89,12 @@
     background: #e65c00;
     color: #ffffff;
     border: none;
-    padding: 12px;
+    padding: 12px 6px;
     border-radius: 8px;
     font-weight: bold;
     cursor: pointer;
-    font-size: 0.9rem;
+    font-size: 0.88rem;
+    white-space: nowrap;
     transition: background 0.2s ease;
   }
 
@@ -152,7 +167,7 @@
   }
 
   .reset-btn { 
-    flex: 0 0 75px; 
+    flex: 0 0 70px; 
     background: #333; 
     color: #999; 
     border: 1px solid #444; 
@@ -199,14 +214,16 @@
   }
 
   .category-title {
-    color: #fff !important;      
-    font-size: 0.95rem;          
-    font-weight: 800;            
-    padding-top: 10px !important;
-    padding-bottom: 5px !important;
-    border-bottom: 2px solid #ff9800; 
-    width: 100%;                 
-  }
+  color: #fff !important;      
+  font-size: 0.95rem;          
+  font-weight: 800;            
+  /* 刪除：width: 100%;  <-- 這行是導致按鈕被擠下去的主因 */
+  width: auto;                  /* 改為 auto 或直接刪除該行 */
+  padding-top: 0 !important;   /* 避免上方留白過大 */
+  padding-bottom: 5px !important;
+  border-bottom: 2px solid #ff9800;
+}
+
 
   /* 歷史觀測紀錄日誌樣式 */
   .record-card { margin-top: 15px; }
@@ -220,16 +237,18 @@
     padding-bottom: 8px;
   }
 
-  .btn-clear-all {
-    background-color: #e74c3c !important;
-    color: white !important;
-    padding: 5px 10px;
-    font-size: 12px;
-    font-weight: 500;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-  }
+.btn-clear-all {
+  background-color: #e74c3c !important;
+  color: white !important;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap; /* <-- 新增這行，防止文字分成兩行 */
+}
+
 
   .record-table-wrapper {
     width: 100%;
@@ -322,28 +341,28 @@
 <body>
 
 <div class="calculator">
-  <h1>地下段列車 G-meter & GPS 雙模測速儀</h1>
+  <h1>加速度積分 與 GPS測速器</h1>
 
   <!-- 權限要求按鈕列 -->
   <div id="permission-btn-container" style="margin-bottom: 12px; display: flex; gap: 8px;">
-    <button id="btn-request-permission" class="btn-fill">授權動態感測器 (iOS)</button>
+    <button id="btn-request-permission" class="btn-fill">啟動動態感測器</button>
     <button id="btn-request-gps" class="btn-fill" style="color: #00bcd4; border-color: #00bcd4;">開啟 GPS 定位</button>
   </div>
 
   <!-- 狀態提示區域 -->
   <div style="text-align: center; margin-bottom: 10px; display: flex; flex-direction: column; gap: 4px; align-items: center;">
-    <span id="calib-status" class="status-tag status-inactive">G-meter 校準：未校準 (請靜止時按矯正歸零)</span>
+    <span id="calib-status" class="status-tag status-inactive">未校準 (請靜止時按矯正歸零)</span>
     <span id="gps-status" class="status-tag status-inactive">GPS 定位：未啟動</span>
   </div>
 
   <!-- 速度對照雙卡片 -->
   <div class="speed-compare-grid">
     <div class="speed-card">
-      <div class="speed-card-title">G-meter 積分車速</div>
+      <div class="speed-card-title">積分速度</div>
       <div class="speed-val-lg gmeter-color"><span id="speed-val">0.0</span><span class="unit">km/h</span></div>
     </div>
     <div class="speed-card">
-      <div class="speed-card-title">GPS 衛星實測</div>
+      <div class="speed-card-title">GPS速度</div>
       <div class="speed-val-lg gps-color"><span id="gps-speed-val">0.0</span><span class="unit">km/h</span></div>
     </div>
   </div>
@@ -352,38 +371,40 @@
   <div class="result-box">
     <!-- 總位移顯示區 -->
     <div class="distance-box">
-      G-meter 累積位移：<span id="dist-val">0.0</span> <span id="dist-unit">m</span>
-    </div>
-
-    <!-- Y 軸 縱向加速/減速 -->
-    <div class="info">
-      <span class="axis-title">Y 軸 (縱向加速)：</span>
-      <span id="accel-val" style="color: #ff9800; font-weight: bold;">0.000</span> m/s² 
-      (<span id="g-val">0.000</span> G)
+      積分後累積位移：<span id="dist-val">0.0</span> <span id="dist-unit">m</span>
     </div>
 
     <!-- X 軸 橫向向心加速度 -->
     <div class="info">
-      <span class="axis-title">X 軸 (橫向向心)：</span>
+      <span class="axis-title">X-axis (左右)：</span>
       <span id="accel-x-val" style="color: #2ecc71; font-weight: bold;">0.000</span> m/s² 
       (<span id="g-x-val">0.000</span> G)
     </div>
+    
+    <!-- Y 軸 縱向加速/減速 -->
+    <div class="info">
+      <span class="axis-title">Y-axis (前後)：</span>
+      <span id="accel-val" style="color: #ff9800; font-weight: bold;">0.000</span> m/s² 
+      (<span id="g-val">0.000</span> G)
+    </div>
 
     <div class="info" style="font-size: 0.72rem; color: #666; margin-top: 8px; border-top: 1px dashed #333; padding-top: 6px;">
-      測量時長：<span id="timer-val">0.0</span> s | G-meter 極速：<span id="max-speed-val">0.0</span> km/h | GPS 極速：<span id="gps-max-speed-val">0.0</span> km/h
+      測量時長：<span id="timer-val">0.0</span> s 
+      <div class="info" style="font-size: 0.72rem; color: #666; margin-top: 8px; border-top: 1px dashed #333; padding-top: 6px;">
+      積分極速：<span id="max-speed-val">0.0</span> km/h | GPS 極速：<span id="gps-max-speed-val">0.0</span> km/h
     </div>
   </div>
 
   <!-- 核心控制按鈕列 -->
   <div class="btn-row">
     <button id="btn-zero" class="btn-zero-style">矯正歸零</button>
-    <button id="btn-toggle" class="calc-btn">START 開始錄製</button>
-    <button id="btn-reset" class="reset-btn">RESET</button>
+    <button id="btn-toggle" class="calc-btn">開始錄製</button>
+    <button id="btn-reset" class="reset-btn">重置</button>
   </div>
 
   <!-- 參數與偏置設定面板 -->
   <div class="helper-box">
-    <span class="helper-label">⚙️️ 濾波器與雙軸偏置校準</span>
+    <span class="helper-label">濾波器與雙軸偏置校準</span>
     
     <label for="lpf-slider" style="font-size: 0.78rem; color: #aaa;">低通濾波強度 (Smoothing Alpha: <span id="lpf-val">0.15</span>)</label>
     <div class="helper-inputs">
@@ -406,8 +427,8 @@
   <!-- 歷史觀測紀錄日誌 -->
   <div class="record-card">
     <div class="record-header">
-      <h3 class="category-title" style="border: none; padding: 0;">觀測紀錄日誌</h3>
-      <button id="btn-clear-history" class="btn-clear-all">清空日誌</button>
+      <h3 class="category-title" style="border: none; padding: 0;">觀測紀錄</h3>
+      <button id="btn-clear-history" class="btn-clear-all">清空紀錄</button>
     </div>
 
     <div class="record-table-wrapper">
@@ -415,7 +436,7 @@
         <thead>
           <tr>
             <th>時間</th>
-            <th>G-極速</th>
+            <th>積分極速</th>
             <th>GPS極速</th>
             <th>位移</th>
             <th>時長</th>
@@ -455,8 +476,8 @@ let filteredX = 0.0;
 let filteredY = 0.0;
 
 // 運動學數據
-let currentSpeed = 0.0;      // G-meter 當前速度 (m/s)
-let maxSpeedKmh = 0.0;       // G-meter 最高速 (km/h)
+let currentSpeed = 0.0;      // 積分當前速度 (m/s)
+let maxSpeedKmh = 0.0;       // 積分最高速 (km/h)
 let totalDisplacement = 0.0; // 總位移 (m)
 
 // GPS 數據
@@ -657,7 +678,7 @@ btnZero.addEventListener('click', () => {
   biasDisplayYEl.value = yOffset.toFixed(4) + " m/s²";
 
   calibStatusEl.className = "status-tag status-active";
-  calibStatusEl.textContent = "G-meter 校準：雙軸已完成矯正歸零";
+  calibStatusEl.textContent = "積分校準：雙軸已完成矯正歸零";
 });
 
 // 【START / STOP 開始與停止按鈕】
@@ -798,4 +819,8 @@ btnNextPage.addEventListener('click', () => {
 </script>
 
 </body>
+</html>
+    
+  </body>
+  
 </html>
