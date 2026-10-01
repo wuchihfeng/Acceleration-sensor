@@ -445,7 +445,7 @@
         </thead>
         <tbody id="records-tbody">
           <tr>
-            <td colspan="6" class="placeholder-text">尚無觀測紀錄，按下 STOP 即自動存檔</td>
+            <td colspan="6" class="placeholder-text">尚無觀測紀錄，按下停止錄製即自動存檔</td>
           </tr>
         </tbody>
       </table>
@@ -692,14 +692,14 @@ btnToggle.addEventListener('click', () => {
   isRecording = !isRecording;
 
   if (isRecording) {
-    btnToggle.textContent = "STOP 停止錄製";
+    btnToggle.textContent = "停止錄製";
     btnToggle.style.background = "#e74c3c";
     btnToggle.style.color = "#fff";
     
     lastTimestamp = performance.now();
     recordingStartTime = lastTimestamp;
   } else {
-    btnToggle.textContent = "START 開始錄製";
+    btnToggle.textContent = "開始錄製";
     btnToggle.style.background = "#ff9800";
     btnToggle.style.color = "#121212";
 
@@ -712,7 +712,7 @@ btnToggle.addEventListener('click', () => {
 // 【RESET 重置按鈕】
 btnReset.addEventListener('click', () => {
   isRecording = false;
-  btnToggle.textContent = "START 開始錄製";
+  btnToggle.textContent = "開始錄製";
   btnToggle.style.background = "#ff9800";
   btnToggle.style.color = "#121212";
 
