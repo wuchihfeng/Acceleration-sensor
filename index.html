@@ -1,616 +1,782 @@
-```html
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Y軸加速度即時積分器 (Y-Axis Integration)</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Chart.js for real-time plotting -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- FontAwesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        body {
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-            background-color: #0b0f19;
-            color: #f8fafc;
-        }
-        ::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #0b0f19;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #1e293b;
-            border-radius: 3px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #334155;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>地下段列車 G-meter 測速儀</title>
+  <style>
+  /* --- 基礎設定 --- */
+  * { box-sizing: border-box; }
+
+  body { 
+    margin: 0; 
+    background: #121212; 
+    color: #e0e0e0; 
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+    display: flex; 
+    justify-content: center; 
+    padding: 12px; 
+    width: 100%;   
+  }
+
+  /* 主容器 */
+  .calculator { 
+    background: #1e1e1e; 
+    padding: 20px; 
+    border-radius: 16px; 
+    width: 100%;       
+    max-width: 440px; 
+    border: 1px solid #333; /* 寫死深色線條 */
+    box-shadow: 0 12px 30px rgba(0,0,0,0.45); 
+    overflow: hidden;  
+  }
+
+  h1 { font-size: 1.25rem; color: #ff9800; text-align: center; margin: 0 0 20px; }
+
+  /* 提示文字 */
+  .label-hint { font-size: 0.8rem; color: #888; margin-bottom: 10px; }
+
+  /* 快速選取按鈕 */
+  .quick-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+
+  .quick-tags button { 
+    background: #2a2a2a; 
+    color: #ff9800; 
+    border: 1.5px solid #ff9800; 
+    padding: 8px 4px; 
+    border-radius: 7px; 
+    font-size: 0.74rem; 
+    flex: 1 1 calc(33.333% - 8px); 
+    cursor: pointer; 
+    transition: all 0.15s ease; 
+    font-weight: 600;
+    white-space: nowrap;     
+    overflow: hidden;        
+    text-overflow: ellipsis; 
+  }
+
+  /* 萬用按鈕點擊特效 (包含所有歷史紀錄區域按鈕) */
+  .calculator button:active,
+  .record-card button:active { 
+    filter: brightness(0.75) !important; 
+    transform: scale(0.95) !important; 
+    transition: filter 0.05s, transform 0.05s !important;
+  }
+
+  /* 輸入框控制 */
+  .horizontal-inputs { display: flex; gap: 10px; }
+  .horizontal-inputs input { flex: 1; min-width: 0; }
+
+  .input-group { margin-bottom: 15px; }
+  label { display: block; font-size: 0.82rem; margin-bottom: 6px; color: #aaa; }
+
+  input { 
+    width: 100%; 
+    padding: 11px; 
+    background: #252525; 
+    border: 1px solid #444; 
+    border-radius: 8px; 
+    color: #fff; 
+    outline: none; 
+    font-size: 0.95rem;
+  }
+
+  input:focus { border-color: #ff9800; }
+
+  /* 車廂組合顯示盒 */
+  .parts-box { 
+    background: #252525; 
+    border: 1px solid #333; 
+    border-radius: 10px; 
+    padding: 12px; 
+    min-height: 50px; 
+    margin-bottom: 15px;
+  }
+
+  .placeholder-text { color: #555; text-align: center; font-size: 0.8rem; padding-top: 5px; }
+
+  .part-row { 
+    display: grid; 
+    grid-template-columns: 1fr 80px; 
+    gap: 10px; 
+    align-items: center; 
+    margin-bottom: 8px; 
+  }
+
+  .part-name { color: #ddd; font-size: 0.85rem; font-weight: 600; }
+  .part-row input { text-align: center; padding: 5px; height: 30px; }
+
+  .calc-btn { 
+    flex: 2; 
+    background: #ff9800; 
+    color: #121212; 
+    border: none; 
+    padding: 12px; 
+    border-radius: 8px; 
+    font-weight: bold; 
+    cursor: pointer; 
+  }
+
+  .calc-btn:hover { background: #e68a00; }
+
+  /* 結果區域 */
+  .result-box { 
+    background: #121212; 
+    padding: 16px; 
+    border-radius: 12px; 
+    text-align: center; 
+    margin: 12px 0; 
+    border: 1px solid #222; 
+    transition: border-color 0.3s;
+  }
+
+  .speed { font-size: 2.5rem; color: #ff9800; font-weight: 800; }
+  .unit { font-size: 0.9rem; color: #666; margin-left: 4px; }
+  .info { font-size: 0.85rem; color: #aaa; margin-top: 6px; }
+
+  hr { 
+    border: 0; 
+    border-top: 1px solid #333; 
+    margin: 20px 0; 
+  }
+
+  /* 輔助對照表 */
+  .reference-guide { 
+    background: #252525; 
+    padding: 12px; 
+    border-radius: 10px; 
+    border: 1px solid #333; 
+    margin-top: 20px; 
+  }
+
+  .guide-title { 
+    font-size: 0.8rem; 
+    color: #ff9800; 
+    margin-bottom: 8px; 
+    font-weight: bold; 
+  }
+
+  .guide-content { 
+    max-height: 270px; 
+    overflow-y: auto; 
+    font-size: 0.75rem; 
+  }
+
+  /* 表格樣式 */
+  table { width: 100%; border-collapse: collapse; }
+  td { 
+    padding: 8px 5px; 
+    border-bottom: 1px solid #333; 
+    color: #888; 
+  }
+  td:first-child { color: #ff9800; font-weight: bold; width: 80px; }
+  .guide-content::-webkit-scrollbar { width: 4px; }
+  .guide-content::-webkit-scrollbar-thumb { background: #ff9800; border-radius: 10px; }
+
+  .btn-row { 
+    display: flex; 
+    gap: 8px; 
+    margin: 10px 0; 
+  }
+
+  .reset-btn { 
+    flex: 0 0 90px; 
+    background: #333; 
+    color: #999; 
+    border: 1px solid #444; 
+    border-radius: 8px; 
+    font-size: 0.75rem;
+    cursor: pointer;
+  }
+
+  /* 秒數助手外框 */
+  .helper-box {
+    background: #2a2a2a;
+    padding: 15px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    border: 1px dashed #555;
+  }
+
+  .helper-label {
+    color: #ff9800;
+    font-weight: bold;
+    display: block;
+    margin-bottom: 12px;
+  }
+
+  .helper-inputs {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-bottom: 12px;
+  }
+
+  .helper-inputs input {
+    flex: 1;
+    min-width: 0; 
+    text-align: center;
+    padding: 10px 5px;
+    height: 38px;
+  }
+
+  .operator {
+    color: #888;
+    font-weight: bold;
+    padding: 0 5px;
+  }
+
+  .helper-btns {
+    display: flex;
+    gap: 10px;
+  }
+
+  .btn-fill {
+    flex: 2;
+    padding: 12px;
+    background: transparent;
+    color: #ff9800;
+    border: 1.5px solid #ff9800;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+  }
+
+  .btn-clear {
+    flex: 1;
+    padding: 12px;
+    background: #333;
+    color: #888;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+
+  .reset-all-container {
+    margin-bottom: 20px;
+  }
+
+  .btn-danger {
+    width: 100%;
+    padding: 12px;
+    background: #442222;
+    color: #ff6666;
+    border: 1px solid #663333;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+  }
+
+  .accel-theme {
+    background: #e65c00 !important;
+    color: #fff !important;
+  }
+
+  .accel-box {
+    border-color: #444 !important;
+  }
+
+  .light-speed {
+    color: #e0e0e0 !important;
+  }
+
+  .category-title {
+    color: #fff !important;      
+    font-size: 0.95rem;          
+    font-weight: 800;            
+    padding-top: 15px !important;
+    padding-bottom: 5px !important;
+    border-bottom: 2px solid #ff9800; 
+    width: 100%;                 
+  }
+
+  /* 歷史觀測紀錄日誌樣式 */
+  .record-card {
+    margin-top: 20px;
+  }
+
+  .record-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    border-bottom: 1px solid #333;
+    padding-bottom: 10px;
+  }
+
+  .record-header h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+  }
+
+  .btn-clear-all {
+    background-color: #e74c3c !important;
+    color: white !important;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    width: auto !important;
+    margin: 0;
+    transition: opacity 0.2s ease, transform 0.1s ease;
+  }
+
+  .record-table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 6px;
+  }
+
+  .record-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+    font-size: 14px;
+    white-space: nowrap; 
+  }
+
+  .record-table th {
+    padding: 12px 10px;
+    border-bottom: 2px solid #333;
+    color: #888;
+    font-weight: 500;
+    font-size: 13px;
+  }
+
+  .record-table tr {
+    border-bottom: 1px solid #333;
+    transition: background-color 0.15s ease;
+  }
+
+  .record-table tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.02);
+  }
+
+  .record-table td {
+    padding: 12px 10px;
+    vertical-align: middle;
+  }
+
+  .record-data-cell {
+    font-family: 'Noto Sans Mono', ui-monospace, 'SFMono-Regular', 'Roboto Mono', Consolas, monospace !important;
+    font-weight: 700;
+    font-size: 16px;
+    color: #e0e0e0;
+  }
+
+  .record-badge {
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    display: inline-block;
+  }
+
+  .badge-speed {
+    background-color: rgba(52, 152, 219, 0.15);
+    color: #3498db;
+  }
+
+  .badge-accel {
+    background-color: rgba(46, 204, 113, 0.15);
+    color: #2ecc71;
+  }
+
+  .btn-delete {
+    background: #442222;
+    color: #ff6666;
+    border: 1px solid #663333;
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    transition: transform 0.05s ease, filter 0.05s ease;
+  }
+
+  .pagination-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+    margin-top: 15px;
+  }
+
+  .btn-page {
+    background: #2a2a2a;
+    color: #ff9800;
+    border: 1px solid #ff9800;
+    padding: 4px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+  }
+
+  .btn-page:disabled {
+    border-color: #444;
+    color: #555;
+    cursor: not-allowed;
+  }
+
+  .page-info {
+    font-size: 0.85rem;
+    color: #aaa;
+  }
+
+  /* 自訂狀態警示標籤 */
+  .status-tag {
+    font-size: 0.75rem;
+    padding: 3px 8px;
+    border-radius: 4px;
+    margin-top: 4px;
+    display: inline-block;
+  }
+  .status-active { background: rgba(46, 204, 113, 0.2); color: #2ecc71; border: 1px solid #2ecc71; }
+  .status-inactive { background: rgba(231, 76, 60, 0.2); color: #e74c3c; border: 1px solid #e74c3c; }
+  </style>
 </head>
-<body class="min-h-screen flex flex-col justify-between p-3 sm:p-6">
+<body>
 
-    <div class="max-w-6xl mx-auto w-full space-y-6">
-        <!-- Header -->
-        <header class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-900/90 p-5 rounded-2xl border border-slate-800 shadow-2xl backdrop-blur-md">
-            <div>
-                <div class="flex items-center gap-2">
-                    <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">單軸模式 (Y-Axis)</span>
-                    <span id="hzDisplay" class="px-2.5 py-0.5 rounded-full text-xs font-mono bg-slate-800 text-slate-400">0 Hz</span>
-                </div>
-                <h1 class="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 bg-clip-text text-transparent mt-1">
-                    Y 軸加速度即時積分器
-                </h1>
-                <p class="text-xs sm:text-sm text-slate-400 mt-1">
-                    專注於手機縱向 (Y 軸) 加速度 $a_y \rightarrow v_y \rightarrow d_y$ 的即時一重與二重數值積分
-                </p>
-            </div>
-            
-            <!-- Controls Buttons -->
-            <div class="flex flex-wrap items-center gap-2 sm:gap-3 w-full md:w-auto">
-                <button id="permissionBtn" onclick="requestSensorPermission()" class="flex-1 md:flex-none px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-medium rounded-xl shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 text-sm">
-                    <i class="fa-solid fa-key"></i>
-                    授權感測器
-                </button>
-                <button id="toggleBtn" onclick="toggleTracking()" disabled class="flex-1 md:flex-none px-4 py-2.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white font-medium rounded-xl transition-all flex items-center justify-center gap-2 text-sm border border-slate-700">
-                    <i id="toggleIcon" class="fa-solid fa-play text-emerald-400"></i>
-                    <span id="toggleText">開始記錄</span>
-                </button>
-                <button id="calibrateBtn" onclick="startAutoCalibration()" class="px-4 py-2.5 bg-amber-600/80 hover:bg-amber-500 text-white font-medium rounded-xl transition-all flex items-center justify-center gap-2 text-sm shadow-md">
-                    <i class="fa-solid fa-bullseye"></i>
-                    3秒自動校準
-                </button>
-                <button onclick="resetIntegration()" class="px-4 py-2.5 bg-rose-600/80 hover:bg-rose-500 text-white font-medium rounded-xl transition-all flex items-center justify-center gap-2 text-sm shadow-md">
-                    <i class="fa-solid fa-rotate-left"></i>
-                    歸零
-                </button>
-            </div>
-        </header>
+<div class="calculator">
+  <h1>列車地下段 G-meter 測速儀</h1>
 
-        <!-- Big Numerical Readouts -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <!-- Y Acceleration Card -->
-            <div class="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl shadow-xl relative overflow-hidden group">
-                <div class="absolute top-0 left-0 w-1.5 h-full bg-emerald-400"></div>
-                <div class="flex justify-between items-center mb-2">
-                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
-                        <i class="fa-solid fa-gauge text-emerald-400"></i> Y 軸加速度 ($a_y$)
-                    </span>
-                    <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-800/40">m/s²</span>
-                </div>
-                <div class="flex items-baseline justify-between mt-2">
-                    <span id="accYDisplay" class="text-4xl font-extrabold font-mono text-emerald-300 tracking-tight">0.000</span>
-                    <span class="text-xs text-slate-500 font-mono">原始: <span id="rawAccYDisplay">0.00</span></span>
-                </div>
-                <p class="text-[11px] text-slate-500 mt-2">過濾與校準後之即時縱向加速度</p>
-            </div>
+  <!-- iOS 權限要求按鈕 -->
+  <div id="permission-btn-container" style="margin-bottom: 15px; display: none;">
+    <button id="btn-request-permission" class="btn-fill" style="width: 100%;">點擊授權動態感測器 (iOS)</button>
+  </div>
 
-            <!-- Y Velocity Card -->
-            <div class="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl shadow-xl relative overflow-hidden group">
-                <div class="absolute top-0 left-0 w-1.5 h-full bg-cyan-400"></div>
-                <div class="flex justify-between items-center mb-2">
-                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
-                        <i class="fa-solid fa-bolt text-cyan-400"></i> Y 軸即時速度 ($v_y$)
-                    </span>
-                    <div class="flex gap-1 text-[10px]">
-                        <button id="unitMsBtn" onclick="setVelUnit('ms')" class="px-2 py-0.5 rounded bg-cyan-500 text-slate-950 font-bold">m/s</button>
-                        <button id="unitKmhBtn" onclick="setVelUnit('kmh')" class="px-2 py-0.5 rounded bg-slate-800 text-slate-400 hover:text-slate-200">km/h</button>
-                    </div>
-                </div>
-                <div class="flex items-baseline justify-between mt-2">
-                    <span id="velYDisplay" class="text-4xl font-extrabold font-mono text-cyan-300 tracking-tight">0.000</span>
-                    <span id="zuptBadge" class="text-[10px] px-2 py-0.5 rounded font-medium bg-slate-800 text-slate-400 border border-slate-700">動態中</span>
-                </div>
-                <p class="text-[11px] text-slate-500 mt-2">一重 trapezoidal 梯形積分 $v = \int a_y dt$</p>
-            </div>
+  <!-- 狀態提示區域 -->
+  <div style="text-align: center; margin-bottom: 10px;">
+    <span id="calib-status" class="status-tag status-inactive">校準狀態：尚未校準 (請於靜止時按 ZERO)</span>
+  </div>
 
-            <!-- Y Displacement Card -->
-            <div class="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl shadow-xl relative overflow-hidden group">
-                <div class="absolute top-0 left-0 w-1.5 h-full bg-indigo-400"></div>
-                <div class="flex justify-between items-center mb-2">
-                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
-                        <i class="fa-solid fa-arrows-up-down text-indigo-400"></i> Y 軸估算位移 ($d_y$)
-                    </span>
-                    <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-950/60 text-indigo-400 border border-indigo-800/40">公尺 (m)</span>
-                </div>
-                <div class="flex items-baseline justify-between mt-2">
-                    <span id="posYDisplay" class="text-4xl font-extrabold font-mono text-indigo-300 tracking-tight">0.000</span>
-                    <span id="peakVelDisplay" class="text-xs text-slate-500 font-mono">峰值速度: 0.00</span>
-                </div>
-                <p class="text-[11px] text-slate-500 mt-2">二重積分 $d = \int v_y dt$ (注意：IMU 二次積分極易發散)</p>
-            </div>
-        </div>
+  <!-- 速度與加速度顯示面板 -->
+  <div class="result-box">
+    <div class="speed"><span id="speed-val">0.0</span><span class="unit"> km/h</span></div>
+    <div class="info">
+      Y 軸加速度：<span id="accel-val" style="color: #ff9800; font-weight: bold;">0.000</span> m/s² 
+      (<span id="g-val">0.000</span> G)
+    </div>
+    <div class="info" style="font-size: 0.75rem; color: #666; margin-top: 4px;">
+      測量時長：<span id="timer-val">0.0</span> 秒 | 最高速：<span id="max-speed-val">0.0</span> km/h
+    </div>
+  </div>
 
-        <!-- Calibration Overlay Modal (Hidden by default) -->
-        <div id="calibrationModal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-            <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl max-w-sm w-full text-center space-y-4 shadow-2xl">
-                <div class="w-12 h-12 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center mx-auto text-xl">
-                    <i class="fa-solid fa-compass-drafting animate-spin"></i>
-                </div>
-                <div>
-                    <h3 class="text-lg font-bold text-slate-100">正在進行 3 秒靜止校準</h3>
-                    <p class="text-xs text-slate-400 mt-1">請將手機固定靜止在平面上，系統正計算 Y 軸偏置零點 (Zero-Bias Offset)...</p>
-                </div>
-                <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-                    <div id="calibrationProgress" class="bg-amber-400 h-full w-0 transition-all duration-300"></div>
-                </div>
-                <span id="calibrationCount" class="text-xs font-mono text-amber-400 font-bold block">剩餘 3.0 秒</span>
-            </div>
-        </div>
+  <!-- 核心控制按鈕列 -->
+  <div class="btn-row">
+    <button id="btn-zero" class="quick-tags" style="flex: 1; margin: 0;">
+      <button class="accel-theme" style="width: 100%; font-size: 0.9rem; padding: 12px;">ZERO 校準歸零</button>
+    </button>
+    <button id="btn-toggle" class="calc-btn" style="flex: 1;">START 開始錄製</button>
+    <button id="btn-reset" class="reset-btn">RESET 重置</button>
+  </div>
 
-        <!-- Drift Filter Controls -->
-        <div class="bg-slate-900/90 border border-slate-800 p-5 rounded-2xl shadow-xl space-y-4">
-            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h2 class="text-sm font-bold text-slate-200 flex items-center gap-2">
-                    <i class="fa-solid fa-sliders text-emerald-400"></i> Y 軸訊號過濾與漂移抑制參數
-                </h2>
-                <span id="currentOffsetDisplay" class="text-xs font-mono text-amber-400">零位校準值 Offset: 0.0000 m/s²</span>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <!-- High-Pass Filter -->
-                <div class="space-y-2">
-                    <div class="flex justify-between items-center">
-                        <label class="text-xs font-semibold text-slate-300 flex items-center gap-2">
-                            <input type="checkbox" id="hpToggle" checked class="rounded bg-slate-950 border-slate-800 text-emerald-500 focus:ring-emerald-500">
-                            高通濾波器 (High-Pass Filter)
-                        </label>
-                        <span id="hpAlphaVal" class="text-xs font-mono text-emerald-400">α = 0.88</span>
-                    </div>
-                    <input type="range" id="hpSlider" min="0.50" max="0.99" step="0.01" value="0.88" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-400">
-                    <p class="text-[11px] text-slate-400">消除重力分量殘留與低頻直流（DC）偏移漂移。</p>
-                </div>
-
-                <!-- Noise Threshold Deadzone -->
-                <div class="space-y-2">
-                    <div class="flex justify-between items-center">
-                        <label class="text-xs font-semibold text-slate-300 flex items-center gap-2">
-                            <input type="checkbox" id="noiseToggle" checked class="rounded bg-slate-950 border-slate-800 text-emerald-500 focus:ring-emerald-500">
-                            雜訊門檻死區 (Deadzone)
-                        </label>
-                        <span id="noiseThreshVal" class="text-xs font-mono text-emerald-400">0.12 m/s²</span>
-                    </div>
-                    <input type="range" id="noiseSlider" min="0.02" max="0.60" step="0.01" value="0.12" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-400">
-                    <p class="text-[11px] text-slate-400">當 $a_y$ 小於此數值時視為環境微震，自動歸零。</p>
-                </div>
-
-                <!-- ZUPT Control -->
-                <div class="space-y-2">
-                    <div class="flex justify-between items-center">
-                        <label class="text-xs font-semibold text-slate-300 flex items-center gap-2">
-                            <input type="checkbox" id="zuptToggle" checked class="rounded bg-slate-950 border-slate-800 text-emerald-500 focus:ring-emerald-500">
-                            零速度更新 (ZUPT)
-                        </label>
-                        <span id="zuptVal" class="text-xs font-mono text-emerald-400">靜止 0.25s 歸零</span>
-                    </div>
-                    <input type="range" id="zuptSlider" min="0.10" max="1.00" step="0.05" value="0.25" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-400">
-                    <p class="text-[11px] text-slate-400">檢測到加速度持續低於死區時，強制將速度拉回 0。</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Combined Chart Display -->
-        <div class="bg-slate-900/90 border border-slate-800 p-5 rounded-2xl shadow-xl space-y-3">
-            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
-                    <i class="fa-solid fa-chart-line text-emerald-400"></i> Y 軸動態波形對照圖 (Y-Axis Synchronized Waveforms)
-                </h3>
-                <div class="flex items-center gap-4 text-xs font-mono">
-                    <span class="flex items-center gap-1.5 text-emerald-400"><span class="w-2.5 h-0.5 bg-emerald-400 inline-block"></span> $a_y$ (m/s²)</span>
-                    <span class="flex items-center gap-1.5 text-cyan-400"><span class="w-2.5 h-0.5 bg-cyan-400 inline-block"></span> $v_y$ (m/s)</span>
-                    <span class="flex items-center gap-1.5 text-indigo-400"><span class="w-2.5 h-0.5 bg-indigo-400 inline-block"></span> $d_y$ (m)</span>
-                </div>
-            </div>
-            <div class="h-64 sm:h-80 w-full relative">
-                <canvas id="yAxisChart"></canvas>
-            </div>
-        </div>
-
-        <!-- Theoretical & Educational Info Box -->
-        <div class="bg-slate-900/60 border border-slate-800 p-5 rounded-2xl space-y-3">
-            <h3 class="text-sm font-bold text-teal-300 flex items-center gap-2">
-                <i class="fa-solid fa-graduation-cap"></i> 物理原理與二重積分漂移 (Double Integration Drift) 說明
-            </h3>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-slate-300 leading-relaxed">
-                <div class="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800/80 space-y-1">
-                    <span class="font-bold text-emerald-400 block">1. 梯形積分 (Trapezoidal Rule)</span>
-                    <p class="text-slate-400">速度計算式為 $v_k = v_{k-1} + \frac{a_k + a_{k-1}}{2} \cdot \Delta t$。每次採樣取當前與前一刻加速度之平均進行數值積分。</p>
-                </div>
-                <div class="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800/80 space-y-1">
-                    <span class="font-bold text-amber-400 block">2. 漂移發散 (Error Accumulation)</span>
-                    <p class="text-slate-400">手機 IMU 存在微小白雜訊與 Bias。加速度的常數誤差經過一次積分會造成速度線性漂移 ($\propto t$)，二次積分更會導致位移二次方發散 ($\propto t^2$)。</p>
-                </div>
-                <div class="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800/80 space-y-1">
-                    <span class="font-bold text-cyan-400 block">3. 修正機制 (ZUPT & High-Pass)</span>
-                    <p class="text-slate-400">高通濾波可過濾慢速基線偏移；Zero-Velocity Update (ZUPT) 則利用手機停頓靜止的瞬間，將速度強行歸零以切斷累積誤差。</p>
-                </div>
-            </div>
-        </div>
+  <!-- 秒數助手 / 低通濾波調校外框 -->
+  <div class="helper-box">
+    <span class="helper-label">⚙️ 濾波器與校準參數設定</span>
+    
+    <label for="lpf-slider">低通濾波強度 (Smoothing Alpha: <span id="lpf-val">0.15</span>)</label>
+    <div class="helper-inputs">
+      <input type="range" id="lpf-slider" min="0.01" max="0.50" step="0.01" value="0.15">
     </div>
 
-    <!-- Footer -->
-    <footer class="text-center text-xs text-slate-500 py-4 mt-6">
-        Single Y-Axis Motion Tracker • Powered by DeviceMotionEvent & Chart.js
-    </footer>
+    <label for="bias-display">當前 Y 軸零點偏移量 (Zero Offset):</label>
+    <div class="helper-inputs">
+      <input type="text" id="bias-display" value="0.0000 m/s²" readonly>
+    </div>
+  </div>
 
-    <script>
-        // System & Sensor States
-        let isTracking = false;
-        let lastTimestamp = 0;
-        let sampleCount = 0;
-        let lastHzTime = performance.now();
-        let velUnit = 'ms'; // 'ms' or 'kmh'
+  <hr>
 
-        // Single Y-Axis Kinematic Variables
-        let rawAccY = 0;
-        let yOffset = 0;
-        let filteredAccY = 0;
-        let prevFilteredAccY = 0;
-        let prevRawAccY = 0;
+  <!-- 歷史觀測紀錄日誌 -->
+  <div class="record-card">
+    <div class="record-header">
+      <h3 class="category-title" style="border: none; padding: 0;">觀測紀錄日誌</h3>
+      <button id="btn-clear-history" class="btn-clear-all">清空日誌</button>
+    </div>
 
-        let velY = 0;
-        let posY = 0;
-        let peakVelY = 0;
+    <div class="record-table-wrapper">
+      <table class="record-table">
+        <thead>
+          <tr>
+            <th>時間</th>
+            <th>極速 (km/h)</th>
+            <th>時長 (s)</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="records-tbody">
+          <tr>
+            <td colspan="4" class="placeholder-text">尚無觀測紀錄，按下 STOP 即自動存檔</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
 
-        // ZUPT quiet timer
-        let quietTimer = 0;
+    <!-- 分頁選單 -->
+    <div class="pagination-container">
+      <button id="btn-prev-page" class="btn-page" disabled>上一頁</button>
+      <span id="page-info" class="page-info">第 1 / 1 頁</span>
+      <button id="btn-next-page" class="btn-page" disabled>下一頁</button>
+    </div>
+  </div>
+</div>
 
-        // Calibration variables
-        let isCalibrating = false;
-        let calibSamples = [];
-        let calibTimerInterval = null;
+<script>
+// --- 核心演算法與全局變數 ---
+let isRecording = false;
+let isCalibrated = false;
 
-        // Max points on Chart
-        const MAX_POINTS = 60;
-        let yChart;
+let yOffset = 0.0;           // ZERO 校準得到的 Y 軸偏置量 (m/s²)
+let currentRawY = 0.0;        // 原始 Y 軸數據
+let filteredY = 0.0;         // 低通濾波後的加速度
+let currentSpeed = 0.0;      // 當前速度 (m/s)
+let maxSpeedKmh = 0.0;       // 最高速 (km/h)
 
-        // DOM Elements
-        const permissionBtn = document.getElementById('permissionBtn');
-        const toggleBtn = document.getElementById('toggleBtn');
-        const toggleIcon = document.getElementById('toggleIcon');
-        const toggleText = document.getElementById('toggleText');
+let lastTimestamp = null;
+let recordingStartTime = null;
+let totalRecordedTime = 0.0;
 
-        function initChart() {
-            const ctx = document.getElementById('yAxisChart').getContext('2d');
-            const labels = Array(MAX_POINTS).fill('');
+let lpfAlpha = 0.15;         // 低通濾波 Alpha 值
 
-            yChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [
-                        {
-                            label: 'Y加速度 (m/s²)',
-                            borderColor: '#34d399',
-                            backgroundColor: 'rgba(52, 211, 153, 0.05)',
-                            data: Array(MAX_POINTS).fill(0),
-                            yAxisID: 'yAcc',
-                            borderWidth: 1.8,
-                            fill: true
-                        },
-                        {
-                            label: 'Y速度 (m/s)',
-                            borderColor: '#22d3ee',
-                            data: Array(MAX_POINTS).fill(0),
-                            yAxisID: 'yVel',
-                            borderWidth: 2
-                        },
-                        {
-                            label: 'Y位移 (m)',
-                            borderColor: '#818cf8',
-                            data: Array(MAX_POINTS).fill(0),
-                            yAxisID: 'yPos',
-                            borderWidth: 2,
-                            borderDash: [4, 4]
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    animation: false,
-                    interaction: { intersect: false, mode: 'index' },
-                    scales: {
-                        x: { display: false },
-                        yAcc: {
-                            type: 'linear',
-                            position: 'left',
-                            grid: { color: '#1e293b' },
-                            ticks: { color: '#34d399', font: { size: 10 } },
-                            title: { display: true, text: 'Acc (m/s²)', color: '#34d399', font: { size: 10 } }
-                        },
-                        yVel: {
-                            type: 'linear',
-                            position: 'right',
-                            grid: { drawOnChartArea: false },
-                            ticks: { color: '#22d3ee', font: { size: 10 } },
-                            title: { display: true, text: 'Vel (m/s)', color: '#22d3ee', font: { size: 10 } }
-                        },
-                        yPos: {
-                            type: 'linear',
-                            position: 'right',
-                            grid: { drawOnChartArea: false },
-                            ticks: { color: '#818cf8', font: { size: 10 } },
-                            title: { display: true, text: 'Pos (m)', color: '#818cf8', font: { size: 10 } }
-                        }
-                    },
-                    plugins: {
-                        legend: { display: false }
-                    },
-                    elements: { point: { radius: 0 }, line: { tension: 0.15 } }
-                }
-            });
+// 分頁紀錄相關變數
+let records = [];
+let currentPage = 1;
+const rowsPerPage = 5;
+
+// DOM 元件引用
+const speedValEl = document.getElementById('speed-val');
+const accelValEl = document.getElementById('accel-val');
+const gValEl = document.getElementById('g-val');
+const timerValEl = document.getElementById('timer-val');
+const maxSpeedValEl = document.getElementById('max-speed-val');
+const calibStatusEl = document.getElementById('calib-status');
+const biasDisplayEl = document.getElementById('bias-display');
+
+const btnZero = document.getElementById('btn-zero');
+const btnToggle = document.getElementById('btn-toggle');
+const btnReset = document.getElementById('btn-reset');
+const lpfSlider = document.getElementById('lpf-slider');
+const lpfValEl = document.getElementById('lpf-val');
+
+const recordsTbody = document.getElementById('records-tbody');
+const btnClearHistory = document.getElementById('btn-clear-history');
+const btnPrevPage = document.getElementById('btn-prev-page');
+const btnNextPage = document.getElementById('btn-next-page');
+const pageInfoEl = document.getElementById('page-info');
+
+// --- 1. iOS 權限申請檢查 ---
+if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+  const permBtnContainer = document.getElementById('permission-btn-container');
+  permBtnContainer.style.display = 'block';
+  
+  document.getElementById('btn-request-permission').addEventListener('click', () => {
+    DeviceMotionEvent.requestPermission()
+      .then(response => {
+        if (response === 'granted') {
+          permBtnContainer.style.display = 'none';
+          initSensorListener();
+        } else {
+          alert('需要加速度計權限才能進行測速！');
         }
+      })
+      .catch(console.error);
+  });
+} else {
+  initSensorListener();
+}
 
-        async function requestSensorPermission() {
-            if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
-                try {
-                    const permissionState = await DeviceMotionEvent.requestPermission();
-                    if (permissionState === 'granted') {
-                        permissionBtn.classList.add('hidden');
-                        toggleBtn.disabled = false;
-                        alert('成功存取手機加速度感測器！');
-                    } else {
-                        alert('存取權限被拒絕。');
-                    }
-                } catch (error) {
-                    console.error('Permission error:', error);
-                    alert('要求權限時發生錯誤: ' + error.message);
-                }
-            } else if (window.DeviceMotionEvent) {
-                permissionBtn.classList.add('hidden');
-                toggleBtn.disabled = false;
-            } else {
-                alert('您的瀏覽器或裝置不支援 DeviceMotionEvent。');
-            }
+// --- 2. 監聽手機加速度計事件 ---
+function initSensorListener() {
+  window.addEventListener('devicemotion', (event) => {
+    if (!event.accelerationIncludingGravity) return;
+    
+    // 取出 Y 軸數據 (m/s²)
+    // 註：有些瀏覽器手機縱向朝前時前進為 -Y 或 +Y，依情況調整符號
+    let rawY = event.accelerationIncludingGravity.y || 0.0;
+    currentRawY = rawY;
+
+    // 低通濾波處理 (Low-Pass Filter) 消除微小抖動
+    filteredY = filteredY + lpfAlpha * (currentRawY - filteredY);
+
+    // 計算扣除 ZERO 校準後的淨加速度
+    let cleanAccel = filteredY - yOffset;
+
+    // 更新即時加速度與 G 值 UI
+    accelValEl.textContent = cleanAccel.toFixed(3);
+    gValEl.textContent = (cleanAccel / 9.80665).toFixed(3);
+
+    // 若正在錄製，執行積分算速度
+    const now = performance.now();
+    if (isRecording) {
+      if (lastTimestamp !== null) {
+        let dt = (now - lastTimestamp) / 1000.0; // 秒
+        if (dt > 0 && dt < 0.5) { // 避免背景分頁導致 dt 過大
+          // 數值積分：v_new = v_old + a * dt
+          currentSpeed += cleanAccel * dt;
+          if (currentSpeed < 0) currentSpeed = 0; // 防止靜止負值漂移
+
+          let speedKmh = currentSpeed * 3.6;
+          speedValEl.textContent = speedKmh.toFixed(1);
+
+          if (speedKmh > maxSpeedKmh) {
+            maxSpeedKmh = speedKmh;
+            maxSpeedValEl.textContent = maxSpeedKmh.toFixed(1);
+          }
+
+          totalRecordedTime = (now - recordingStartTime) / 1000.0;
+          timerValEl.textContent = totalRecordedTime.toFixed(1);
         }
+      }
+      lastTimestamp = now;
+    }
+  });
+}
 
-        function toggleTracking() {
-            if (!isTracking) {
-                startTracking();
-            } else {
-                stopTracking();
-            }
-        }
+// --- 3. 按鈕事件綁定 ---
 
-        function startTracking() {
-            isTracking = true;
-            lastTimestamp = performance.now();
-            window.addEventListener('devicemotion', handleMotion, true);
+// 【ZERO 校準按鈕】
+btnZero.addEventListener('click', () => {
+  // 擷取當前低通濾波後的 Y 軸數值作為 Bias 偏置量
+  yOffset = filteredY;
+  isCalibrated = true;
 
-            toggleIcon.className = 'fa-solid fa-pause text-amber-400';
-            toggleText.innerText = '暫停記錄';
-        }
+  // 強制速度與時間歸零
+  currentSpeed = 0.0;
+  speedValEl.textContent = "0.0";
+  biasDisplayEl.value = yOffset.toFixed(4) + " m/s²";
 
-        function stopTracking() {
-            isTracking = false;
-            window.removeEventListener('devicemotion', handleMotion, true);
+  // 更新 UI 狀態標籤
+  calibStatusEl.className = "status-tag status-active";
+  calibStatusEl.textContent = "校準狀態：已啟用 ZERO 校準";
+});
 
-            toggleIcon.className = 'fa-solid fa-play text-emerald-400';
-            toggleText.innerText = '開始記錄';
-        }
+// 【START / STOP 開始與停止按鈕】
+btnToggle.addEventListener('click', () => {
+  if (!isCalibrated) {
+    if (!confirm("⚠️ 尚未執行 ZERO 校準，建議在列車完全靜止時按 ZERO 以避免重力漂移！確定要直接開始嗎？")) {
+      return;
+    }
+  }
 
-        function handleMotion(event) {
-            if (!isTracking) return;
+  isRecording = !isRecording;
 
-            const now = performance.now();
-            let dt = (now - lastTimestamp) / 1000;
-            lastTimestamp = now;
+  if (isRecording) {
+    btnToggle.textContent = "STOP 停止錄製";
+    btnToggle.style.background = "#e74c3c";
+    btnToggle.style.color = "#fff";
+    
+    lastTimestamp = performance.now();
+    recordingStartTime = lastTimestamp;
+  } else {
+    btnToggle.textContent = "START 開始錄製";
+    btnToggle.style.background = "#ff9800";
+    btnToggle.style.color = "#121212";
 
-            if (dt <= 0 || dt > 0.5) dt = 0.016; // Fallback to ~60Hz if glitch
+    // 停止錄製時自動存入歷史紀錄
+    if (totalRecordedTime > 1.0) {
+      addRecord(maxSpeedKmh, totalRecordedTime);
+    }
+  }
+});
 
-            // Hz Counter
-            sampleCount++;
-            if (now - lastHzTime >= 1000) {
-                const hz = Math.round((sampleCount * 1000) / (now - lastHzTime));
-                document.getElementById('hzDisplay').innerText = `${hz} Hz`;
-                sampleCount = 0;
-                lastHzTime = now;
-            }
+// 【RESET 重置按鈕】
+btnReset.addEventListener('click', () => {
+  isRecording = false;
+  btnToggle.textContent = "START 開始錄製";
+  btnToggle.style.background = "#ff9800";
+  btnToggle.style.color = "#121212";
 
-            // Get Acceleration (prefer linear acceleration without gravity if available)
-            const acc = event.acceleration || event.accelerationIncludingGravity;
-            if (!acc || acc.y === null || acc.y === undefined) return;
+  currentSpeed = 0.0;
+  maxSpeedKmh = 0.0;
+  totalRecordedTime = 0.0;
+  lastTimestamp = null;
 
-            // Extract Raw Y-axis value
-            let rawY = acc.y;
+  speedValEl.textContent = "0.0";
+  maxSpeedValEl.textContent = "0.0";
+  timerValEl.textContent = "0.0";
+});
 
-            // If performing calibration sampling
-            if (isCalibrating) {
-                calibSamples.push(rawY);
-                return;
-            }
+// 【濾波器滑桿調整】
+lpfSlider.addEventListener('input', (e) => {
+  lpfAlpha = parseFloat(e.target.value);
+  lpfValEl.textContent = lpfAlpha.toFixed(2);
+});
 
-            // Subtract zero-offset calibration
-            rawAccY = rawY - yOffset;
+// --- 4. 歷史紀錄日誌與分頁系統 ---
+function addRecord(maxSpeed, duration) {
+  const timeStr = new Date().toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  records.unshift({
+    id: Date.now(),
+    time: timeStr,
+    maxSpeed: maxSpeed.toFixed(1),
+    duration: duration.toFixed(1)
+  });
+  renderRecords();
+}
 
-            // 1. High-Pass Filter processing
-            const hpEnabled = document.getElementById('hpToggle').checked;
-            const alpha = parseFloat(document.getElementById('hpSlider').value);
-            document.getElementById('hpAlphaVal').innerText = `α = ${alpha}`;
+function renderRecords() {
+  if (records.length === 0) {
+    recordsTbody.innerHTML = `<tr><td colspan="4" class="placeholder-text">尚無觀測紀錄，按下 STOP 即自動存檔</td></tr>`;
+    btnPrevPage.disabled = true;
+    btnNextPage.disabled = true;
+    pageInfoEl.textContent = `第 1 / 1 頁`;
+    return;
+  }
 
-            if (hpEnabled) {
-                filteredAccY = alpha * (prevFilteredAccY + rawAccY - prevRawAccY);
-                prevRawAccY = rawAccY;
-                prevFilteredAccY = filteredAccY;
-            } else {
-                filteredAccY = rawAccY;
-            }
+  const totalPages = Math.ceil(records.length / rowsPerPage);
+  if (currentPage > totalPages) currentPage = totalPages;
 
-            // 2. Deadzone Noise Threshold
-            const noiseEnabled = document.getElementById('noiseToggle').checked;
-            const threshold = parseFloat(document.getElementById('noiseSlider').value);
-            document.getElementById('noiseThreshVal').innerText = `${threshold.toFixed(2)} m/s²`;
+  const startIndex = (currentPage - 1) * rowsPerPage;
+  const pageRecords = records.slice(startIndex, startIndex + rowsPerPage);
 
-            let accForIntegration = filteredAccY;
-            if (noiseEnabled && Math.abs(accForIntegration) < threshold) {
-                accForIntegration = 0;
-            }
+  recordsTbody.innerHTML = pageRecords.map(r => `
+    <tr>
+      <td>${r.time}</td>
+      <td class="record-data-cell"><span class="record-badge badge-speed">${r.maxSpeed}</span></td>
+      <td>${r.duration} s</td>
+      <td><button class="btn-delete" onclick="deleteRecord(${r.id})">刪除</button></td>
+    </tr>
+  `).join('');
 
-            // 3. Trapezoidal Integration for Velocity: v = v_prev + (a_prev + a_curr)/2 * dt
-            let prevVelY = velY;
-            velY += accForIntegration * dt;
+  pageInfoEl.textContent = `第 ${currentPage} / ${totalPages} 頁`;
+  btnPrevPage.disabled = (currentPage === 1);
+  btnNextPage.disabled = (currentPage === totalPages);
+}
 
-            // 4. Zero Velocity Update (ZUPT)
-            const zuptEnabled = document.getElementById('zuptToggle').checked;
-            const zuptDuration = parseFloat(document.getElementById('zuptSlider').value);
-            document.getElementById('zuptVal').innerText = `靜止 ${zuptDuration.toFixed(2)}s 歸零`;
+window.deleteRecord = function(id) {
+  records = records.filter(r => r.id !== id);
+  renderRecords();
+};
 
-            if (Math.abs(accForIntegration) === 0) {
-                quietTimer += dt;
-            } else {
-                quietTimer = 0;
-            }
+btnClearHistory.addEventListener('click', () => {
+  if (records.length === 0) return;
+  if (confirm("確定要清空所有歷史觀測紀錄嗎？")) {
+    records = [];
+    currentPage = 1;
+    renderRecords();
+  }
+});
 
-            const zuptBadge = document.getElementById('zuptBadge');
-            if (zuptEnabled && quietTimer >= zuptDuration) {
-                velY = 0;
-                zuptBadge.innerText = 'ZUPT 鎖定中';
-                zuptBadge.className = 'text-[10px] px-2 py-0.5 rounded font-medium bg-emerald-950 text-emerald-400 border border-emerald-800';
-            } else {
-                zuptBadge.innerText = '動態中';
-                zuptBadge.className = 'text-[10px] px-2 py-0.5 rounded font-medium bg-slate-800 text-slate-400 border border-slate-700';
-            }
+btnPrevPage.addEventListener('click', () => {
+  if (currentPage > 1) {
+    currentPage--;
+    renderRecords();
+  }
+});
 
-            // Peak velocity tracking
-            if (Math.abs(velY) > Math.abs(peakVelY)) {
-                peakVelY = velY;
-            }
+btnNextPage.addEventListener('click', () => {
+  const totalPages = Math.ceil(records.length / rowsPerPage);
+  if (currentPage < totalPages) {
+    currentPage++;
+    renderRecords();
+  }
+});
+</script>
 
-            // 5. Integration for Displacement: d = d_prev + (v_prev + v_curr)/2 * dt
-            posY += ((prevVelY + velY) / 2) * dt;
-
-            // UI Refresh
-            updateReadouts(accForIntegration, rawY);
-            updateChartData(accForIntegration, velY, posY);
-        }
-
-        function updateReadouts(cleanAcc, rawY) {
-            document.getElementById('accYDisplay').innerText = cleanAcc.toFixed(3);
-            document.getElementById('rawAccYDisplay').innerText = rawY.toFixed(2);
-
-            // Velocity Unit conversion
-            let displayVel = velY;
-            if (velUnit === 'kmh') {
-                displayVel = velY * 3.6;
-            }
-            document.getElementById('velYDisplay').innerText = displayVel.toFixed(3);
-            document.getElementById('peakVelDisplay').innerText = `峰值: ${peakVelY.toFixed(2)} m/s`;
-
-            document.getElementById('posYDisplay').innerText = posY.toFixed(3);
-        }
-
-        function updateChartData(acc, vel, pos) {
-            const datasets = yChart.data.datasets;
-
-            datasets[0].data.push(acc);
-            datasets[1].data.push(vel);
-            datasets[2].data.push(pos);
-
-            if (datasets[0].data.length > MAX_POINTS) {
-                datasets[0].data.shift();
-                datasets[1].data.shift();
-                datasets[2].data.shift();
-            }
-
-            yChart.update('none');
-        }
-
-        function setVelUnit(unit) {
-            velUnit = unit;
-            const msBtn = document.getElementById('unitMsBtn');
-            const kmhBtn = document.getElementById('unitKmhBtn');
-
-            if (unit === 'ms') {
-                msBtn.className = 'px-2 py-0.5 rounded bg-cyan-500 text-slate-950 font-bold';
-                kmhBtn.className = 'px-2 py-0.5 rounded bg-slate-800 text-slate-400 hover:text-slate-200';
-            } else {
-                kmhBtn.className = 'px-2 py-0.5 rounded bg-cyan-500 text-slate-950 font-bold';
-                msBtn.className = 'px-2 py-0.5 rounded bg-slate-800 text-slate-400 hover:text-slate-200';
-            }
-        }
-
-        function startAutoCalibration() {
-            if (!isTracking) {
-                alert('請先點擊「開始記錄」開啟感測器後再實施校準。');
-                return;
-            }
-
-            isCalibrating = true;
-            calibSamples = [];
-
-            const modal = document.getElementById('calibrationModal');
-            const progressBar = document.getElementById('calibrationProgress');
-            const countText = document.getElementById('calibrationCount');
-
-            modal.classList.remove('hidden');
-            progressBar.style.width = '0%';
-
-            let timeLeft = 3.0;
-            const startTime = performance.now();
-
-            calibTimerInterval = setInterval(() => {
-                const elapsed = (performance.now() - startTime) / 1000;
-                timeLeft = Math.max(0, 3.0 - elapsed);
-
-                const pct = Math.min(100, (elapsed / 3.0) * 100);
-                progressBar.style.width = `${pct}%`;
-                countText.innerText = `剩餘 ${timeLeft.toFixed(1)} 秒`;
-
-                if (elapsed >= 3.0) {
-                    clearInterval(calibTimerInterval);
-                    finishCalibration();
-                }
-            }, 50);
-        }
-
-        function finishCalibration() {
-            isCalibrating = false;
-            document.getElementById('calibrationModal').classList.add('hidden');
-
-            if (calibSamples.length > 0) {
-                const sum = calibSamples.reduce((a, b) => a + b, 0);
-                yOffset = sum / calibSamples.length;
-                document.getElementById('currentOffsetDisplay').innerText = `零位校準值 Offset: ${yOffset.toFixed(4)} m/s²`;
-                resetIntegration();
-                alert(`3 秒校準完成！平均靜止偏差為 ${yOffset.toFixed(4)} m/s²，已進行補償處理。`);
-            } else {
-                alert('校準失敗：未能收集到足夠的感測器數據。');
-            }
-        }
-
-        function resetIntegration() {
-            velY = 0;
-            posY = 0;
-            peakVelY = 0;
-            quietTimer = 0;
-            prevFilteredAccY = 0;
-            prevRawAccY = 0;
-
-            updateReadouts(0, rawAccY);
-
-            // Clear Chart
-            yChart.data.datasets.forEach(ds => ds.data = Array(MAX_POINTS).fill(0));
-            yChart.update();
-        }
-
-        window.onload = function() {
-            initChart();
-
-            // Auto-check if permission button is needed
-            if (typeof DeviceMotionEvent === 'undefined' || typeof DeviceMotionEvent.requestPermission !== 'function') {
-                if (window.DeviceMotionEvent) {
-                    permissionBtn.classList.add('hidden');
-                    toggleBtn.disabled = false;
-                }
-            }
-        };
-    </script>
 </body>
 </html>
-```
