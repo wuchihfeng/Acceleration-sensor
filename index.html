@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>加速度積分 與 GPS測速器 2.0</title>
+  <title>加速度積分 與 GPS測速器 2.1</title>
   <style>
   /* --- 基礎設定 --- */
   * { box-sizing: border-box; }
@@ -368,8 +368,11 @@
 
     <div class="info" style="font-size: 0.72rem; color: #666; margin-top: 8px; border-top: 1px dashed #333; padding-top: 6px;">
       測量時長：<span id="timer-val">0.0</span> s 
-      <div class="info" style="font-size: 0.72rem; color: #666; margin-top: 8px; border-top: 1px dashed #333; padding-top: 6px;">
+      <div class="info" style="font-size: 0.72rem; color: #666; margin-top: 6px;">
         積分極速：<span id="max-speed-val">0.0</span> km/h | GPS 極速：<span id="gps-max-speed-val">0.0</span> km/h
+      </div>
+      <div class="info" style="font-size: 0.72rem; color: #666; margin-top: 6px; border-top: 1px dashed #222; padding-top: 4px;">
+        最大加速：<span id="max-accel-val">0.000</span> m/s² | 最大減速：<span id="max-decel-val">0.000</span> m/s²
       </div>
     </div>
   </div>
@@ -508,6 +511,10 @@ let maxSpeedKmh = 0.0;
 let totalDisplacement = 0.0; 
 let stillFrameCount = 0;
 
+// 極值加速度追蹤變數
+let maxAccelVal = 0.0;
+let maxDecelVal = 0.0;
+
 let gpsWatchId = null;
 let currentGpsSpeedKmh = 0.0;
 let maxGpsSpeedKmh = 0.0;    
@@ -517,7 +524,7 @@ let recordingStartTime = null;
 let totalRecordedTime = 0.0;
 let timerInterval = null; 
 
-let lpfAlpha = 0.20; // 已更新為捷運實測推薦值
+let lpfAlpha = 0.20; 
 
 let records = [];
 let currentPage = 1;
@@ -536,6 +543,8 @@ const gXValEl = document.getElementById('g-x-val');
 const timerValEl = document.getElementById('timer-val');
 const maxSpeedValEl = document.getElementById('max-speed-val');
 const gpsMaxSpeedValEl = document.getElementById('gps-max-speed-val');
+const maxAccelValEl = document.getElementById('max-accel-val');
+const maxDecelValEl = document.getElementById('max-decel-val');
 
 const calibStatusEl = document.getElementById('calib-status');
 const gpsStatusEl = document.getElementById('gps-status');
@@ -611,6 +620,19 @@ function initSensorListener() {
     const now = performance.now();
 
     if (isAccelRecording) {
+      // 即時捕捉最大加速度與最大減速度
+      if (cleanAccelY > maxAccelVal) {
+        maxAccelVal = cleanAccelY;
+        maxAccelValEl.textContent = maxAccelVal.toFixed(3);
+      }
+      if (cleanAccelY < 0) {
+        let decelMag = Math.abs(cleanAccelY);
+        if (decelMag > maxDecelVal) {
+          maxDecelVal = decelMag;
+          maxDecelValEl.textContent = maxDecelVal.toFixed(3);
+        }
+      }
+
       if (lastAccelTimestamp !== null) {
         let dt = (now - lastAccelTimestamp) / 1000.0; 
         if (dt > 0 && dt < 0.5) { 
@@ -620,13 +642,13 @@ function initSensorListener() {
             stillFrameCount++;
             if (stillFrameCount > 30) {
               currentSpeed = 0.0;
-              speedKF.v = 0.0; // 同步清空濾波器內部的速度
+              speedKF.v = 0.0; 
             }
           } else {
             stillFrameCount = 0;
           }
 
-          // 核心更動：改由卡爾曼濾波器進行估算與更新
+          // 卡爾曼濾波器進行估算與更新
           currentSpeed = speedKF.update(cleanAccelY, dt);
 
           totalDisplacement += currentSpeed * dt;
@@ -734,10 +756,14 @@ btnZero.addEventListener('click', () => {
   yOffset = filteredY;
   isCalibrated = true;
 
-  speedKF.reset(); // 卡爾曼狀態重置
+  speedKF.reset(); 
   currentSpeed = 0.0;
   totalDisplacement = 0.0;
   stillFrameCount = 0;
+  maxAccelVal = 0.0;
+  maxDecelVal = 0.0;
+  maxAccelValEl.textContent = "0.000";
+  maxDecelValEl.textContent = "0.000";
   
   speedValEl.textContent = "0.0";
   distValEl.textContent = "0.0";
@@ -823,10 +849,12 @@ btnReset.addEventListener('click', () => {
   
   stopRecordingTimerIfIdle();
 
-  speedKF.reset(); // 重置卡爾曼濾波器
+  speedKF.reset(); 
   currentSpeed = 0.0;
   maxSpeedKmh = 0.0;
   maxGpsSpeedKmh = 0.0;
+  maxAccelVal = 0.0;
+  maxDecelVal = 0.0;
   totalDisplacement = 0.0;
   totalRecordedTime = 0.0;
   stillFrameCount = 0;
@@ -837,6 +865,8 @@ btnReset.addEventListener('click', () => {
   gpsSpeedValEl.textContent = "0.0";
   maxSpeedValEl.textContent = "0.0";
   gpsMaxSpeedValEl.textContent = "0.0";
+  maxAccelValEl.textContent = "0.000";
+  maxDecelValEl.textContent = "0.000";
   distValEl.textContent = "0.0";
   distUnitEl.textContent = "m";
   timerValEl.textContent = "0.0";
