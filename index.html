@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>加速度積分 與 GPS測速器 1.5</title>
+  <title>加速度積分 與 GPS測速器 2.0</title>
   <style>
   /* --- 基礎設定 --- */
   * { box-sizing: border-box; }
@@ -146,14 +146,12 @@
     margin: 18px 0; 
   }
 
-/* 修改前：grid-template-columns: 1fr 1.2fr 1.2fr 0.8fr; */
-.btn-row { 
-  display: grid; 
-  grid-template-columns: 1fr 1fr; /* 改為兩列等寬 */
-  gap: 8px;                       /* 稍微調大間隙讓排版更好看 */
-  margin: 10px 0; 
-}
-
+  .btn-row { 
+    display: grid; 
+    grid-template-columns: 1fr 1fr; 
+    gap: 8px;                       
+    margin: 10px 0; 
+  }
 
   .reset-btn { 
     background: #333; 
@@ -328,7 +326,7 @@
 
   <!-- 權限要求按鈕列 -->
   <div id="permission-btn-container" style="margin-bottom: 12px; display: flex; gap: 8px;">
-    <button id="btn-request-permission" class="btn-fill">啟動動態感測器</button>
+    <button id="btn-request-permission" class="btn-fill">啟動動態感測器 (含陀螺儀)</button>
     <button id="btn-request-gps" class="btn-fill" style="color: #00bcd4; border-color: #00bcd4;">開啟 GPS 定位</button>
   </div>
 
@@ -363,9 +361,15 @@
     </div>
     
     <div class="info">
-      <span class="axis-title">Y-axis (前後)：</span>
+      <span class="axis-title">Y-axis (淨推進)：</span>
       <span id="accel-val" style="color: #ff9800; font-weight: bold;">0.000</span> m/s² 
       (<span id="g-val">0.000</span> G)
+    </div>
+
+    <!-- 陀螺儀姿態監測顯示 -->
+    <div class="info" style="color: #9b59b6;">
+      <span class="axis-title" style="color: #9b59b6;">Pitch 俯仰角：</span>
+      <span id="pitch-val">0.0</span>° | 重力分量: <span id="gravity-comp-val">0.000</span> m/s²
     </div>
 
     <div class="info" style="font-size: 0.72rem; color: #666; margin-top: 8px; border-top: 1px dashed #333; padding-top: 6px;">
@@ -376,37 +380,34 @@
     </div>
   </div>
 
-
-<!-- 核心控制按鈕列 (調整後的順序) -->
-<div class="btn-row">
-  <!-- 第一排 -->
-  <button id="btn-zero" class="ctrl-btn btn-zero-style">矯正歸零</button>
-  <button id="btn-reset" class="reset-btn">重置</button>
-  
-  <!-- 第二排 -->
-  <button id="btn-toggle-accel" class="ctrl-btn btn-gmeter-idle">錄製積分</button>
-  <button id="btn-toggle-gps" class="ctrl-btn btn-gps-idle">錄製 GPS</button>
-</div>
-
-
+  <!-- 核心控制按鈕列 (2x2 佈局) -->
+  <div class="btn-row">
+    <!-- 第一排 -->
+    <button id="btn-zero" class="ctrl-btn btn-zero-style">矯正歸零</button>
+    <button id="btn-reset" class="reset-btn">重置</button>
+    
+    <!-- 第二排 -->
+    <button id="btn-toggle-accel" class="ctrl-btn btn-gmeter-idle">錄製積分</button>
+    <button id="btn-toggle-gps" class="ctrl-btn btn-gps-idle">錄製 GPS</button>
+  </div>
 
   <!-- 參數與偏置設定面板 -->
   <div class="helper-box">
-    <span class="helper-label">濾波器與雙軸偏置校準</span>
+    <span class="helper-label">平滑低通濾波與姿態動態補償</span>
     
     <label for="lpf-slider" style="font-size: 0.78rem; color: #aaa;">低通濾波強度 (Smoothing Alpha: <span id="lpf-val">0.15</span>)</label>
     <div class="helper-inputs">
       <input type="range" id="lpf-slider" min="0.01" max="0.50" step="0.01" value="0.15">
     </div>
 
-    <label style="font-size: 0.78rem; color: #aaa;">Y 軸縱向零點偏置 (Zero Offset):</label>
+    <label style="font-size: 0.78rem; color: #aaa;">Y 軸淨偏置 (Bias Offset):</label>
     <div class="helper-inputs">
       <input type="text" id="bias-display-y" value="0.0000 m/s²" readonly>
     </div>
 
-    <label style="font-size: 0.78rem; color: #aaa;">X 軸橫向零點偏置 (Zero Offset):</label>
+    <label style="font-size: 0.78rem; color: #aaa;">基準俯仰角 (Base Pitch Angle):</label>
     <div class="helper-inputs">
-      <input type="text" id="bias-display-x" value="0.0000 m/s²" readonly>
+      <input type="text" id="bias-display-pitch" value="0.0°" readonly>
     </div>
   </div>
 
@@ -457,13 +458,15 @@ let isCalibrated = false;
 let xOffset = 0.0;           
 let yOffset = 0.0;           
 
+// 陀螺儀與姿態相關變數
+let currentPitch = 0.0;      // 當前縱向俯仰角度
+let basePitch = 0.0;         // 矯正歸零時的基準俯仰角
+let filteredPitch = 0.0;     // 平滑後的 Pitch 角度
+
 let currentRawX = 0.0;
 let currentRawY = 0.0;
 let filteredX = 0.0;
 let filteredY = 0.0;
-
-let longTermBuffer = [];
-const LONG_WINDOW_SIZE = 100;
 
 let currentSpeed = 0.0;      
 let maxSpeedKmh = 0.0;       
@@ -477,7 +480,7 @@ let maxGpsSpeedKmh = 0.0;
 let lastAccelTimestamp = null;
 let recordingStartTime = null;
 let totalRecordedTime = 0.0;
-let timerInterval = null; // 全局計時器
+let timerInterval = null; 
 
 let lpfAlpha = 0.15;         
 
@@ -494,6 +497,9 @@ const accelValEl = document.getElementById('accel-val');
 const gValEl = document.getElementById('g-val');
 const accelXValEl = document.getElementById('accel-x-val');
 const gXValEl = document.getElementById('g-x-val');
+const pitchValEl = document.getElementById('pitch-val');
+const gravityCompValEl = document.getElementById('gravity-comp-val');
+
 const timerValEl = document.getElementById('timer-val');
 const maxSpeedValEl = document.getElementById('max-speed-val');
 const gpsMaxSpeedValEl = document.getElementById('gps-max-speed-val');
@@ -501,7 +507,7 @@ const gpsMaxSpeedValEl = document.getElementById('gps-max-speed-val');
 const calibStatusEl = document.getElementById('calib-status');
 const gpsStatusEl = document.getElementById('gps-status');
 const biasDisplayYEl = document.getElementById('bias-display-y');
-const biasDisplayXEl = document.getElementById('bias-display-x');
+const biasDisplayPitchEl = document.getElementById('bias-display-pitch');
 
 const btnZero = document.getElementById('btn-zero');
 const btnToggleAccel = document.getElementById('btn-toggle-accel');
@@ -516,55 +522,76 @@ const btnPrevPage = document.getElementById('btn-prev-page');
 const btnNextPage = document.getElementById('btn-next-page');
 const pageInfoEl = document.getElementById('page-info');
 
-// 權限啟動
-if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
-  document.getElementById('btn-request-permission').addEventListener('click', () => {
-    DeviceMotionEvent.requestPermission()
-      .then(response => {
-        if (response === 'granted') {
-          initSensorListener();
-          document.getElementById('btn-request-permission').style.display = 'none';
-        } else {
-          alert('需要加速度計權限才能進行測速！');
-        }
-      })
-      .catch(console.error);
-  });
-} else {
+// 權限啟動 (含 DeviceMotionEvent 與 DeviceOrientationEvent)
+document.getElementById('btn-request-permission').addEventListener('click', () => {
+  let p1 = Promise.resolve();
+  let p2 = Promise.resolve();
+
+  if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+    p1 = DeviceMotionEvent.requestPermission();
+  }
+  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+    p2 = DeviceOrientationEvent.requestPermission();
+  }
+
+  Promise.all([p1, p2])
+    .then(results => {
+      initSensorListener();
+      initOrientationListener();
+      document.getElementById('btn-request-permission').style.display = 'none';
+    })
+    .catch(err => {
+      alert('請授權動態與陀螺儀感測器權限，才能進行姿態補償計算！');
+      console.error(err);
+    });
+});
+
+// 若不需權限授權流程 (Android / PC) 直接初始化
+if (typeof DeviceMotionEvent === 'undefined' || typeof DeviceMotionEvent.requestPermission !== 'function') {
   document.getElementById('btn-request-permission').style.display = 'none';
   initSensorListener();
+  initOrientationListener();
 }
 
 document.getElementById('btn-request-gps').addEventListener('click', () => {
   initGpsListener();
 });
 
-// 通用濾波器
-function processAccelerationAdaptive(rawY, yOffset, speedMps) {
-  let cleanAccel = rawY - yOffset;
-  const speedKmh = speedMps * 3.6;
+// 1. 監聽陀螺儀 / 姿態角 (DeviceOrientation)
+function initOrientationListener() {
+  window.addEventListener('deviceorientation', (event) => {
+    // beta 代表手機頂端的俯仰角 Pitch (-180 ~ 180)
+    let rawPitch = event.beta || 0.0;
+    
+    // 平滑化 Pitch 角度
+    filteredPitch = filteredPitch + lpfAlpha * (rawPitch - filteredPitch);
+    currentPitch = filteredPitch;
 
-  if (speedKmh < 3.0) {
-    return Math.abs(cleanAccel) < 0.015 ? 0 : cleanAccel;
-  }
-
-  longTermBuffer.push(cleanAccel);
-  if (longTermBuffer.length > LONG_WINDOW_SIZE) {
-    longTermBuffer.shift();
-  }
-
-  let sum = 0;
-  for (let val of longTermBuffer) sum += val;
-  let longTermAvg = sum / longTermBuffer.length;
-
-  if (Math.abs(longTermAvg) < 0.35) {
-    cleanAccel = cleanAccel - longTermAvg;
-  }
-
-  return cleanAccel;
+    pitchValEl.textContent = currentPitch.toFixed(1);
+  });
 }
 
-// 2. 監聽感測器
+// 2. 核心：陀螺儀重力扣除與超敏銳動態處理
+function processAccelerationWithGyro(rawY) {
+  // 計算相對於矯正基準的角度差
+  let deltaPitchRad = (currentPitch - basePitch) * (Math.PI / 180.0);
+
+  // 計算傾斜產生的重力分量 (g = 9.80665 m/s²)
+  let gravityComponentY = 9.80665 * Math.sin(deltaPitchRad);
+  gravityCompValEl.textContent = gravityComponentY.toFixed(3);
+
+  // 純淨車身推進加速度 = 測得總加速度 - 傾斜重力分量 - 靜態偏置
+  let pureAccelY = rawY - gravityComponentY - yOffset;
+
+  // 超敏銳死區 (Deadband)：大幅縮減門檻以捕捉火車/高鐵等微弱加速度 (從原本 0.15 降為 0.02)
+  if (Math.abs(pureAccelY) < 0.02) {
+    pureAccelY = 0.0;
+  }
+
+  return pureAccelY;
+}
+
+// 3. 監聽加速度感測器 (devicemotion)
 function initSensorListener() {
   window.addEventListener('devicemotion', (event) => {
     if (!event.accelerationIncludingGravity) return;
@@ -576,7 +603,8 @@ function initSensorListener() {
     filteredY = filteredY + lpfAlpha * (currentRawY - filteredY);
 
     let cleanAccelX = filteredX - xOffset;
-    let cleanAccelY = processAccelerationAdaptive(filteredY, yOffset, currentSpeed);
+    // 使用姿態動態重力扣除
+    let cleanAccelY = processAccelerationWithGyro(filteredY);
 
     accelValEl.textContent = cleanAccelY.toFixed(3);
     gValEl.textContent = (cleanAccelY / 9.80665).toFixed(3);
@@ -591,15 +619,17 @@ function initSensorListener() {
         let dt = (now - lastAccelTimestamp) / 1000.0; 
         if (dt > 0 && dt < 0.5) { 
 
-          if (cleanAccelY === 0 && currentSpeed < (3.0 / 3.6)) {
+          // 靜止歸零判斷 (連續靜止超時判定)
+          if (cleanAccelY === 0 && currentSpeed < (2.0 / 3.6)) {
             stillFrameCount++;
-            if (stillFrameCount > 30) {
+            if (stillFrameCount > 35) {
               currentSpeed = 0.0;
             }
           } else {
             stillFrameCount = 0;
           }
 
+          // 時間積分：速度 = 速度 + 加速度 * dt
           currentSpeed += cleanAccelY * dt;
           if (currentSpeed < 0) currentSpeed = 0; 
 
@@ -627,7 +657,7 @@ function initSensorListener() {
   });
 }
 
-// 3. GPS 監聽
+// 4. GPS 監聽
 function initGpsListener() {
   if (!("geolocation" in navigator)) {
     alert("您的裝置或瀏覽器不支援 GPS 定位！");
@@ -702,33 +732,34 @@ function stopRecordingTimerIfIdle() {
   }
 }
 
-// 4. 按鈕觸發機制
+// 5. 按鈕觸發機制
 
+// 矯正歸零：同時校準加速度靜態偏移與基準 Pitch 角
 btnZero.addEventListener('click', () => {
   xOffset = filteredX;
   yOffset = filteredY;
+  basePitch = currentPitch; // 鎖定當前手機放置角度為 0° 基準
   isCalibrated = true;
 
   currentSpeed = 0.0;
   totalDisplacement = 0.0;
   stillFrameCount = 0;
-  longTermBuffer = [];
   
   speedValEl.textContent = "0.0";
   distValEl.textContent = "0.0";
   distUnitEl.textContent = "m";
 
-  biasDisplayXEl.value = xOffset.toFixed(4) + " m/s²";
   biasDisplayYEl.value = yOffset.toFixed(4) + " m/s²";
+  biasDisplayPitchEl.value = basePitch.toFixed(1) + "°";
 
   calibStatusEl.className = "status-tag status-active";
-  calibStatusEl.textContent = "積分校準：雙軸已完成矯正歸零";
+  calibStatusEl.textContent = "已完成校準：零點偏置與姿態基準已鎖定";
 });
 
 // 開啟/停止 積分錄製
 btnToggleAccel.addEventListener('click', () => {
   if (!isCalibrated && !isAccelRecording) {
-    if (!confirm("⚠️ 尚未執行矯正歸零，建議在靜止時按「矯正歸零」以避免重力漂移！確定要直接開始嗎？")) {
+    if (!confirm("⚠️ 尚未執行矯正歸零，建議在靜止時按「矯正歸零」鎖定姿態角度！確定要直接開始嗎？")) {
       return;
     }
   }
@@ -744,7 +775,6 @@ btnToggleAccel.addEventListener('click', () => {
     btnToggleAccel.textContent = "錄製積分";
     btnToggleAccel.className = "ctrl-btn btn-gmeter-idle";
     
-    // 立即將當前錄製寫入歷史日誌
     saveCurrentRecord(true, false);
     stopRecordingTimerIfIdle();
   }
@@ -766,7 +796,6 @@ btnToggleGps.addEventListener('click', () => {
     btnToggleGps.textContent = "錄製 GPS";
     btnToggleGps.className = "ctrl-btn btn-gps-idle";
 
-    // 立即將當前錄製寫入歷史日誌
     saveCurrentRecord(false, true);
     stopRecordingTimerIfIdle();
   }
@@ -809,7 +838,6 @@ btnReset.addEventListener('click', () => {
   stillFrameCount = 0;
   lastAccelTimestamp = null;
   recordingStartTime = null;
-  longTermBuffer = [];
 
   speedValEl.textContent = "0.0";
   gpsSpeedValEl.textContent = "0.0";
@@ -825,7 +853,7 @@ lpfSlider.addEventListener('input', (e) => {
   lpfValEl.textContent = lpfAlpha.toFixed(2);
 });
 
-// 5. 日誌渲染與分頁
+// 6. 日誌渲染與分頁
 function addRecord(maxSpeed, maxGpsSpeed, displacement, duration, hasAccelData, hasGpsData) {
   const timeStr = new Date().toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
   
