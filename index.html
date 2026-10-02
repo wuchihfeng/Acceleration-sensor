@@ -461,6 +461,10 @@ let currentRawY = 0.0;
 let filteredX = 0.0;
 let filteredY = 0.0;
 
+// 時域自適應坡度追蹤視窗
+let longTermBuffer = [];
+const LONG_WINDOW_SIZE = 100; // 採集約 3~5 秒之滑動視窗
+
 // 運動學數據
 let currentSpeed = 0.0;      // 積分當前速度 (m/s)
 let maxSpeedKmh = 0.0;       // 積分最高速 (km/h)
@@ -541,34 +545,35 @@ document.getElementById('btn-request-gps').addEventListener('click', () => {
   initGpsListener();
 });
 
-// --- 雙模式坡度防護與加速度處理核心函式 ---
-function processAcceleration(rawY, yOffset, speedMps) {
-  let cleanAccelY = rawY - yOffset;
-  const STARTUP_SPEED = 5.0 / 3.6;   // 5 km/h 轉 m/s
-  const CRUISE_SPEED = 15.0 / 3.6;   // 15 km/h 轉 m/s
-  const MAX_SLOPE_G_LEAK = 0.35;     // 捷運/台鐵最大軌道坡度重力分量 (~3.5% 坡度)
+// --- 通用時域自適應坡度與雜訊濾波器 ---
+function processAccelerationAdaptive(rawY, yOffset, speedMps) {
+  let cleanAccel = rawY - yOffset;
+  const speedKmh = speedMps * 3.6;
 
-  // 1. 【起步階段】：高採集靈敏度（相容台鐵號誌險阻後慢行起步）
-  if (speedMps <= STARTUP_SPEED) {
-    if (Math.abs(cleanAccelY) < 0.02) {
-      cleanAccelY = 0; // 只切掉完全靜止時的微弱硬體雜訊
-    }
-    return cleanAccelY;
+  // 1. 【極低速/起步階段】 (< 3 km/h)：
+  // 保持 0.015 m/s² 極小死區，保護各種運具的極微弱起步（如 EMU900 險阻慢行起步）
+  if (speedKmh < 3.0) {
+    return Math.abs(cleanAccel) < 0.015 ? 0 : cleanAccel;
   }
 
-  // 2. 【巡航與坡度階段】：過濾上坡/下坡重力洩漏 (g*sin(theta))
-  if (speedMps > CRUISE_SPEED) {
-    // 下坡情境：減速度落在坡度重力洩漏區間 (-0.35 m/s² ~ 0)
-    if (cleanAccelY < 0 && cleanAccelY >= -MAX_SLOPE_G_LEAK) {
-      cleanAccelY = 0; // 消除下坡洩漏，防止車速暴跌
-    }
-    // 上坡巡航情境：加速度落在坡度重力洩漏區間 (0 ~ 0.35 m/s²)
-    else if (cleanAccelY > 0 && cleanAccelY <= MAX_SLOPE_G_LEAK) {
-      cleanAccelY = 0; // 消除上坡洩漏，防止速度暴衝至 88 km/h
-    }
+  // 2. 維護長時間滑動視窗 (追蹤坡度直流分量)
+  longTermBuffer.push(cleanAccel);
+  if (longTermBuffer.length > LONG_WINDOW_SIZE) {
+    longTermBuffer.shift();
   }
 
-  return cleanAccelY;
+  // 3. 計算長時域平均值 (Slope DC Offset)
+  let sum = 0;
+  for (let val of longTermBuffer) sum += val;
+  let longTermAvg = sum / longTermBuffer.length;
+
+  // 4. 【坡度動態扣除】：
+  // 利用坡度「持續時間久、數值小且穩定」的特性，當 longTermAvg 落在常見坡度洩漏範圍 (-0.35 ~ +0.35 m/s²) 時，自動進行動態零點扣除
+  if (Math.abs(longTermAvg) < 0.35) {
+    cleanAccel = cleanAccel - longTermAvg;
+  }
+
+  return cleanAccel;
 }
 
 // --- 2. 監聽手機雙軸加速度計事件 ---
@@ -584,8 +589,8 @@ function initSensorListener() {
 
     let cleanAccelX = filteredX - xOffset;
     
-    // 套用雙模式坡度防範邏輯處理 Y 軸
-    let cleanAccelY = processAcceleration(filteredY, yOffset, currentSpeed);
+    // 套用通用時域自適應濾波器處理 Y 軸
+    let cleanAccelY = processAccelerationAdaptive(filteredY, yOffset, currentSpeed);
 
     accelValEl.textContent = cleanAccelY.toFixed(3);
     gValEl.textContent = (cleanAccelY / 9.80665).toFixed(3);
@@ -701,6 +706,7 @@ btnZero.addEventListener('click', () => {
   currentSpeed = 0.0;
   totalDisplacement = 0.0;
   stillFrameCount = 0;
+  longTermBuffer = []; // 清空長時域視窗
   
   speedValEl.textContent = "0.0";
   distValEl.textContent = "0.0";
@@ -755,6 +761,7 @@ btnReset.addEventListener('click', () => {
   totalRecordedTime = 0.0;
   stillFrameCount = 0;
   lastTimestamp = null;
+  longTermBuffer = [];
 
   speedValEl.textContent = "0.0";
   gpsSpeedValEl.textContent = "0.0";
