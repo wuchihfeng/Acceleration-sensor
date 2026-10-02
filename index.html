@@ -146,12 +146,14 @@
     margin: 18px 0; 
   }
 
-  .btn-row { 
-    display: grid; 
-    grid-template-columns: 1fr 1.2fr 1.2fr 0.8fr; 
-    gap: 6px; 
-    margin: 10px 0; 
-  }
+/* 修改前：grid-template-columns: 1fr 1.2fr 1.2fr 0.8fr; */
+.btn-row { 
+  display: grid; 
+  grid-template-columns: 1fr 1fr; /* 改為兩列等寬 */
+  gap: 8px;                       /* 稍微調大間隙讓排版更好看 */
+  margin: 10px 0; 
+}
+
 
   .reset-btn { 
     background: #333; 
@@ -374,13 +376,19 @@
     </div>
   </div>
 
-  <!-- 核心控制按鈕列 -->
-  <div class="btn-row">
-    <button id="btn-zero" class="ctrl-btn btn-zero-style">矯正歸零</button>
-    <button id="btn-toggle-accel" class="ctrl-btn btn-gmeter-idle">錄製積分</button>
-    <button id="btn-toggle-gps" class="ctrl-btn btn-gps-idle">錄製 GPS</button>
-    <button id="btn-reset" class="reset-btn">重置</button>
-  </div>
+
+<!-- 核心控制按鈕列 (調整後的順序) -->
+<div class="btn-row">
+  <!-- 第一排 -->
+  <button id="btn-zero" class="ctrl-btn btn-zero-style">矯正歸零</button>
+  <button id="btn-reset" class="reset-btn">重置</button>
+  
+  <!-- 第二排 -->
+  <button id="btn-toggle-accel" class="ctrl-btn btn-gmeter-idle">錄製積分</button>
+  <button id="btn-toggle-gps" class="ctrl-btn btn-gps-idle">錄製 GPS</button>
+</div>
+
+
 
   <!-- 參數與偏置設定面板 -->
   <div class="helper-box">
