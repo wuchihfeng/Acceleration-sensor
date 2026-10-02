@@ -439,6 +439,57 @@
 </div>
 
 <script>
+// --- 一維卡爾曼濾波器類別 (Kalman Filter for Speed & Slope Bias) ---
+class SpeedKalmanFilter {
+  constructor() {
+    this.v = 0.0;     // 估算速度 (m/s)
+    this.b = 0.0;     // 估算坡度/零點動態偏置 (m/s²)
+    this.P = [        // 協方差矩陣
+      [1.0, 0.0],
+      [0.0, 1.0]
+    ];
+    
+    // 雜訊調整參數
+    this.Q_accel = 0.05; // 火車真實加速度變化雜訊
+    this.Q_bias = 0.001; // 坡度改變率 (坡度通常平緩漸變)
+    this.R_meas = 0.15;  // 感測器雜訊
+  }
+
+  reset() {
+    this.v = 0.0;
+    this.b = 0.0;
+    this.P = [[1.0, 0.0], [0.0, 1.0]];
+  }
+
+  update(rawAccelY, dt) {
+    if (dt <= 0) return this.v;
+
+    // 1. 狀態預測 (Predict)
+    let pureAccel = rawAccelY - this.b;
+    this.v += pureAccel * dt;
+    if (this.v < 0) this.v = 0; // 約束：列車不倒退
+
+    // 協方差外推
+    this.P[0][0] += (this.Q_accel + this.P[1][1]) * dt * dt;
+    this.P[1][1] += this.Q_bias * dt;
+
+    // 2. 自適應動態修正與定速/零速約束 (ZUPT / Const Velocity Update)
+    if (Math.abs(pureAccel) < 0.04) {
+      let innovation = rawAccelY - this.b;
+      let K_bias = this.P[1][1] / (this.P[1][1] + this.R_meas);
+      
+      // 更新並消化動態坡度偏置
+      this.b += K_bias * innovation;
+      this.P[1][1] *= (1 - K_bias);
+    }
+
+    return this.v;
+  }
+}
+
+// 實體化卡爾曼濾波器
+const speedKF = new SpeedKalmanFilter();
+
 // --- 核心變數 ---
 let isAccelRecording = false; 
 let isGpsRecording = false;   
@@ -466,7 +517,7 @@ let recordingStartTime = null;
 let totalRecordedTime = 0.0;
 let timerInterval = null; 
 
-let lpfAlpha = 0.05; // 預設使用較平滑的低通濾波
+let lpfAlpha = 0.05;
 
 let records = [];
 let currentPage = 1;
@@ -522,7 +573,6 @@ document.getElementById('btn-request-permission').addEventListener('click', () =
   }
 });
 
-// 若不需 iOS 授權流程 (Android / PC) 直接初始化
 if (typeof DeviceMotionEvent === 'undefined' || typeof DeviceMotionEvent.requestPermission !== 'function') {
   document.getElementById('btn-request-permission').style.display = 'none';
   initSensorListener();
@@ -547,7 +597,7 @@ function initSensorListener() {
     let cleanAccelX = filteredX - xOffset;
     let cleanAccelY = filteredY - yOffset;
 
-    // 死區濾波 (Deadband)：過濾微小抖動雜訊，確保極低速/靜止時不甩尾
+    // 死區濾波 (Deadband)
     if (Math.abs(cleanAccelY) < 0.03) {
       cleanAccelY = 0.0;
     }
@@ -565,19 +615,19 @@ function initSensorListener() {
         let dt = (now - lastAccelTimestamp) / 1000.0; 
         if (dt > 0 && dt < 0.5) { 
 
-          // 靜止歸零判斷 (連續靜止超時判定)
+          // 靜止歸零判定
           if (cleanAccelY === 0 && currentSpeed < (2.0 / 3.6)) {
             stillFrameCount++;
             if (stillFrameCount > 30) {
               currentSpeed = 0.0;
+              speedKF.v = 0.0; // 同步清空濾波器內部的速度
             }
           } else {
             stillFrameCount = 0;
           }
 
-          // 時間積分：速度 = 速度 + 加速度 * dt
-          currentSpeed += cleanAccelY * dt;
-          if (currentSpeed < 0) currentSpeed = 0; 
+          // 核心更動：改由卡爾曼濾波器進行估算與更新
+          currentSpeed = speedKF.update(cleanAccelY, dt);
 
           totalDisplacement += currentSpeed * dt;
 
@@ -684,6 +734,7 @@ btnZero.addEventListener('click', () => {
   yOffset = filteredY;
   isCalibrated = true;
 
+  speedKF.reset(); // 卡爾曼狀態重置
   currentSpeed = 0.0;
   totalDisplacement = 0.0;
   stillFrameCount = 0;
@@ -772,6 +823,7 @@ btnReset.addEventListener('click', () => {
   
   stopRecordingTimerIfIdle();
 
+  speedKF.reset(); // 重置卡爾曼濾波器
   currentSpeed = 0.0;
   maxSpeedKmh = 0.0;
   maxGpsSpeedKmh = 0.0;
