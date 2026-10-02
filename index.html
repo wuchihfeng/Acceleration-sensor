@@ -326,13 +326,13 @@
 
   <!-- 權限要求按鈕列 -->
   <div id="permission-btn-container" style="margin-bottom: 12px; display: flex; gap: 8px;">
-    <button id="btn-request-permission" class="btn-fill">啟動動態感測器 (含陀螺儀)</button>
+    <button id="btn-request-permission" class="btn-fill">啟動動態感測器</button>
     <button id="btn-request-gps" class="btn-fill" style="color: #00bcd4; border-color: #00bcd4;">開啟 GPS 定位</button>
   </div>
 
   <!-- 狀態提示區域 -->
   <div style="text-align: center; margin-bottom: 10px; display: flex; flex-direction: column; gap: 4px; align-items: center;">
-    <span id="calib-status" class="status-tag status-inactive">未校準 (請靜止時按矯正歸零)</span>
+    <span id="calib-status" class="status-tag status-inactive">未校準 (請在車站靜止時按矯正歸零)</span>
     <span id="gps-status" class="status-tag status-inactive">GPS 定位：未啟動</span>
   </div>
 
@@ -366,12 +366,6 @@
       (<span id="g-val">0.000</span> G)
     </div>
 
-    <!-- 陀螺儀姿態監測顯示 -->
-    <div class="info" style="color: #9b59b6;">
-      <span class="axis-title" style="color: #9b59b6;">Pitch 俯仰角：</span>
-      <span id="pitch-val">0.0</span>° | 重力分量: <span id="gravity-comp-val">0.000</span> m/s²
-    </div>
-
     <div class="info" style="font-size: 0.72rem; color: #666; margin-top: 8px; border-top: 1px dashed #333; padding-top: 6px;">
       測量時長：<span id="timer-val">0.0</span> s 
       <div class="info" style="font-size: 0.72rem; color: #666; margin-top: 8px; border-top: 1px dashed #333; padding-top: 6px;">
@@ -393,21 +387,16 @@
 
   <!-- 參數與偏置設定面板 -->
   <div class="helper-box">
-    <span class="helper-label">平滑低通濾波與姿態動態補償</span>
+    <span class="helper-label">平滑低通濾波設定</span>
     
-    <label for="lpf-slider" style="font-size: 0.78rem; color: #aaa;">低通濾波強度 (Smoothing Alpha: <span id="lpf-val">0.15</span>)</label>
+    <label for="lpf-slider" style="font-size: 0.78rem; color: #aaa;">低通濾波強度 (Smoothing Alpha: <span id="lpf-val">0.05</span>)</label>
     <div class="helper-inputs">
-      <input type="range" id="lpf-slider" min="0.01" max="0.50" step="0.01" value="0.15">
+      <input type="range" id="lpf-slider" min="0.01" max="0.30" step="0.01" value="0.05">
     </div>
 
-    <label style="font-size: 0.78rem; color: #aaa;">Y 軸淨偏置 (Bias Offset):</label>
+    <label style="font-size: 0.78rem; color: #aaa;">Y 軸校準零點偏置 (Bias Offset):</label>
     <div class="helper-inputs">
       <input type="text" id="bias-display-y" value="0.0000 m/s²" readonly>
-    </div>
-
-    <label style="font-size: 0.78rem; color: #aaa;">基準俯仰角 (Base Pitch Angle):</label>
-    <div class="helper-inputs">
-      <input type="text" id="bias-display-pitch" value="0.0°" readonly>
     </div>
   </div>
 
@@ -458,11 +447,6 @@ let isCalibrated = false;
 let xOffset = 0.0;           
 let yOffset = 0.0;           
 
-// 陀螺儀與姿態相關變數
-let currentPitch = 0.0;      // 當前縱向俯仰角度
-let basePitch = 0.0;         // 矯正歸零時的基準俯仰角
-let filteredPitch = 0.0;     // 平滑後的 Pitch 角度
-
 let currentRawX = 0.0;
 let currentRawY = 0.0;
 let filteredX = 0.0;
@@ -482,7 +466,7 @@ let recordingStartTime = null;
 let totalRecordedTime = 0.0;
 let timerInterval = null; 
 
-let lpfAlpha = 0.15;         
+let lpfAlpha = 0.05; // 預設使用較平滑的低通濾波
 
 let records = [];
 let currentPage = 1;
@@ -497,8 +481,6 @@ const accelValEl = document.getElementById('accel-val');
 const gValEl = document.getElementById('g-val');
 const accelXValEl = document.getElementById('accel-x-val');
 const gXValEl = document.getElementById('g-x-val');
-const pitchValEl = document.getElementById('pitch-val');
-const gravityCompValEl = document.getElementById('gravity-comp-val');
 
 const timerValEl = document.getElementById('timer-val');
 const maxSpeedValEl = document.getElementById('max-speed-val');
@@ -507,7 +489,6 @@ const gpsMaxSpeedValEl = document.getElementById('gps-max-speed-val');
 const calibStatusEl = document.getElementById('calib-status');
 const gpsStatusEl = document.getElementById('gps-status');
 const biasDisplayYEl = document.getElementById('bias-display-y');
-const biasDisplayPitchEl = document.getElementById('bias-display-pitch');
 
 const btnZero = document.getElementById('btn-zero');
 const btnToggleAccel = document.getElementById('btn-toggle-accel');
@@ -522,76 +503,36 @@ const btnPrevPage = document.getElementById('btn-prev-page');
 const btnNextPage = document.getElementById('btn-next-page');
 const pageInfoEl = document.getElementById('page-info');
 
-// 權限啟動 (含 DeviceMotionEvent 與 DeviceOrientationEvent)
+// 權限啟動 (DeviceMotionEvent)
 document.getElementById('btn-request-permission').addEventListener('click', () => {
-  let p1 = Promise.resolve();
-  let p2 = Promise.resolve();
-
   if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
-    p1 = DeviceMotionEvent.requestPermission();
+    DeviceMotionEvent.requestPermission()
+      .then(permissionState => {
+        if (permissionState === 'granted') {
+          initSensorListener();
+          document.getElementById('btn-request-permission').style.display = 'none';
+        } else {
+          alert('需要動態感測器權限才能進行加速度積分！');
+        }
+      })
+      .catch(console.error);
+  } else {
+    initSensorListener();
+    document.getElementById('btn-request-permission').style.display = 'none';
   }
-  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-    p2 = DeviceOrientationEvent.requestPermission();
-  }
-
-  Promise.all([p1, p2])
-    .then(results => {
-      initSensorListener();
-      initOrientationListener();
-      document.getElementById('btn-request-permission').style.display = 'none';
-    })
-    .catch(err => {
-      alert('請授權動態與陀螺儀感測器權限，才能進行姿態補償計算！');
-      console.error(err);
-    });
 });
 
-// 若不需權限授權流程 (Android / PC) 直接初始化
+// 若不需 iOS 授權流程 (Android / PC) 直接初始化
 if (typeof DeviceMotionEvent === 'undefined' || typeof DeviceMotionEvent.requestPermission !== 'function') {
   document.getElementById('btn-request-permission').style.display = 'none';
   initSensorListener();
-  initOrientationListener();
 }
 
 document.getElementById('btn-request-gps').addEventListener('click', () => {
   initGpsListener();
 });
 
-// 1. 監聽陀螺儀 / 姿態角 (DeviceOrientation)
-function initOrientationListener() {
-  window.addEventListener('deviceorientation', (event) => {
-    // beta 代表手機頂端的俯仰角 Pitch (-180 ~ 180)
-    let rawPitch = event.beta || 0.0;
-    
-    // 平滑化 Pitch 角度
-    filteredPitch = filteredPitch + lpfAlpha * (rawPitch - filteredPitch);
-    currentPitch = filteredPitch;
-
-    pitchValEl.textContent = currentPitch.toFixed(1);
-  });
-}
-
-// 2. 核心：陀螺儀重力扣除與超敏銳動態處理
-function processAccelerationWithGyro(rawY) {
-  // 計算相對於矯正基準的角度差
-  let deltaPitchRad = (currentPitch - basePitch) * (Math.PI / 180.0);
-
-  // 計算傾斜產生的重力分量 (g = 9.80665 m/s²)
-  let gravityComponentY = 9.80665 * Math.sin(deltaPitchRad);
-  gravityCompValEl.textContent = gravityComponentY.toFixed(3);
-
-  // 純淨車身推進加速度 = 測得總加速度 - 傾斜重力分量 - 靜態偏置
-  let pureAccelY = rawY - gravityComponentY - yOffset;
-
-  // 超敏銳死區 (Deadband)：大幅縮減門檻以捕捉火車/高鐵等微弱加速度 (從原本 0.15 降為 0.02)
-  if (Math.abs(pureAccelY) < 0.02) {
-    pureAccelY = 0.0;
-  }
-
-  return pureAccelY;
-}
-
-// 3. 監聽加速度感測器 (devicemotion)
+// 監聽加速度感測器 (devicemotion)
 function initSensorListener() {
   window.addEventListener('devicemotion', (event) => {
     if (!event.accelerationIncludingGravity) return;
@@ -599,12 +540,17 @@ function initSensorListener() {
     currentRawX = event.accelerationIncludingGravity.x || 0.0;
     currentRawY = event.accelerationIncludingGravity.y || 0.0;
 
+    // 低通濾波
     filteredX = filteredX + lpfAlpha * (currentRawX - filteredX);
     filteredY = filteredY + lpfAlpha * (currentRawY - filteredY);
 
     let cleanAccelX = filteredX - xOffset;
-    // 使用姿態動態重力扣除
-    let cleanAccelY = processAccelerationWithGyro(filteredY);
+    let cleanAccelY = filteredY - yOffset;
+
+    // 死區濾波 (Deadband)：過濾微小抖動雜訊，確保極低速/靜止時不甩尾
+    if (Math.abs(cleanAccelY) < 0.03) {
+      cleanAccelY = 0.0;
+    }
 
     accelValEl.textContent = cleanAccelY.toFixed(3);
     gValEl.textContent = (cleanAccelY / 9.80665).toFixed(3);
@@ -622,7 +568,7 @@ function initSensorListener() {
           // 靜止歸零判斷 (連續靜止超時判定)
           if (cleanAccelY === 0 && currentSpeed < (2.0 / 3.6)) {
             stillFrameCount++;
-            if (stillFrameCount > 35) {
+            if (stillFrameCount > 30) {
               currentSpeed = 0.0;
             }
           } else {
@@ -657,7 +603,7 @@ function initSensorListener() {
   });
 }
 
-// 4. GPS 監聽
+// GPS 監聽
 function initGpsListener() {
   if (!("geolocation" in navigator)) {
     alert("您的裝置或瀏覽器不支援 GPS 定位！");
@@ -706,7 +652,7 @@ function initGpsListener() {
   );
 }
 
-// 獨立全局秒數計時器
+// 秒數計時器
 function updateGlobalTimer() {
   if (isAccelRecording || isGpsRecording) {
     if (recordingStartTime !== null) {
@@ -732,13 +678,10 @@ function stopRecordingTimerIfIdle() {
   }
 }
 
-// 5. 按鈕觸發機制
-
-// 矯正歸零：同時校準加速度靜態偏移與基準 Pitch 角
+// 矯正歸零：鎖定靜態零點偏置
 btnZero.addEventListener('click', () => {
   xOffset = filteredX;
   yOffset = filteredY;
-  basePitch = currentPitch; // 鎖定當前手機放置角度為 0° 基準
   isCalibrated = true;
 
   currentSpeed = 0.0;
@@ -750,16 +693,15 @@ btnZero.addEventListener('click', () => {
   distUnitEl.textContent = "m";
 
   biasDisplayYEl.value = yOffset.toFixed(4) + " m/s²";
-  biasDisplayPitchEl.value = basePitch.toFixed(1) + "°";
 
   calibStatusEl.className = "status-tag status-active";
-  calibStatusEl.textContent = "已完成校準：零點偏置與姿態基準已鎖定";
+  calibStatusEl.textContent = "已完成校準：靜態零點偏置已鎖定";
 });
 
 // 開啟/停止 積分錄製
 btnToggleAccel.addEventListener('click', () => {
   if (!isCalibrated && !isAccelRecording) {
-    if (!confirm("⚠️ 尚未執行矯正歸零，建議在靜止時按「矯正歸零」鎖定姿態角度！確定要直接開始嗎？")) {
+    if (!confirm("⚠️ 尚未執行矯正歸零，建議在靜止時按下「矯正歸零」鎖定零點！確定要直接開始嗎？")) {
       return;
     }
   }
@@ -853,7 +795,7 @@ lpfSlider.addEventListener('input', (e) => {
   lpfValEl.textContent = lpfAlpha.toFixed(2);
 });
 
-// 6. 日誌渲染與分頁
+// 日誌渲染與分頁
 function addRecord(maxSpeed, maxGpsSpeed, displacement, duration, hasAccelData, hasGpsData) {
   const timeStr = new Date().toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
   
