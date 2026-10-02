@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>加速度積分 與 GPS測速器 1.2</title>
+  <title>加速度積分 與 GPS測速器 1.5</title>
   <style>
   /* --- 基礎設定 --- */
   * { box-sizing: border-box; }
@@ -55,38 +55,42 @@
 
   input:focus { border-color: #ff9800; }
 
-  /* 核心錄製按鈕 */
-  .calc-btn { 
-    flex: 1.3; 
-    background: #ff9800; 
-    color: #121212; 
+  /* 核心控制按鈕基底 */
+  .ctrl-btn { 
+    flex: 1; 
     border: none; 
-    padding: 12px 6px; 
+    padding: 10px 4px; 
     border-radius: 8px; 
     font-weight: bold; 
     cursor: pointer; 
-    font-size: 0.88rem;
+    font-size: 0.82rem;
     white-space: nowrap;
+    transition: background 0.2s, color 0.2s;
   }
 
-  .calc-btn:hover { background: #e68a00; }
-
-  /* 矯正歸零按鈕專用樣式 */
   .btn-zero-style {
-    flex: 1;
     background: #e65c00;
     color: #ffffff;
-    border: none;
-    padding: 12px 6px;
-    border-radius: 8px;
-    font-weight: bold;
-    cursor: pointer;
-    font-size: 0.88rem;
-    white-space: nowrap;
-    transition: background 0.2s ease;
+  }
+  .btn-zero-style:hover { background: #cf5300; }
+
+  .btn-gmeter-recording {
+    background: #e74c3c !important;
+    color: #fff !important;
+  }
+  .btn-gmeter-idle {
+    background: #ff9800;
+    color: #121212;
   }
 
-  .btn-zero-style:hover { background: #cf5300; }
+  .btn-gps-recording {
+    background: #e74c3c !important;
+    color: #fff !important;
+  }
+  .btn-gps-idle {
+    background: #00bcd4;
+    color: #121212;
+  }
 
   /* 速度對照卡片雙欄佈局 */
   .speed-compare-grid {
@@ -149,18 +153,18 @@
   }
 
   .btn-row { 
-    display: flex; 
-    gap: 8px; 
+    display: grid; 
+    grid-template-columns: 1fr 1.2fr 1.2fr 0.8fr; 
+    gap: 6px; 
     margin: 10px 0; 
   }
 
   .reset-btn { 
-    flex: 0 0 70px; 
     background: #333; 
     color: #999; 
     border: 1px solid #444; 
     border-radius: 8px; 
-    font-size: 0.85rem;
+    font-size: 0.82rem;
     font-weight: bold;
     cursor: pointer;
   }
@@ -277,6 +281,7 @@
 
   .badge-gmeter { background-color: rgba(255, 152, 0, 0.15); color: #ff9800; }
   .badge-gps { background-color: rgba(0, 188, 212, 0.15); color: #00bcd4; }
+  .badge-none { background-color: rgba(120, 120, 120, 0.15); color: #777; }
 
   .btn-delete {
     background: #442222;
@@ -381,10 +386,11 @@
     </div>
   </div>
 
-  <!-- 核心控制按鈕列 -->
+  <!-- 核心控制按鈕列 (獨立控制) -->
   <div class="btn-row">
-    <button id="btn-zero" class="btn-zero-style">矯正歸零</button>
-    <button id="btn-toggle" class="calc-btn">開始錄製</button>
+    <button id="btn-zero" class="ctrl-btn btn-zero-style">矯正歸零</button>
+    <button id="btn-toggle-accel" class="ctrl-btn btn-gmeter-idle">錄製積分</button>
+    <button id="btn-toggle-gps" class="ctrl-btn btn-gps-idle">錄製 GPS</button>
     <button id="btn-reset" class="reset-btn">重置</button>
   </div>
 
@@ -448,7 +454,8 @@
 
 <script>
 // --- 核心演算法與全局變數 ---
-let isRecording = false;
+let isAccelRecording = false; // 獨立積分錄製狀態
+let isGpsRecording = false;   // 獨立 GPS 錄製狀態
 let isCalibrated = false;
 
 // 偏置量 (Zero Offset)
@@ -463,7 +470,7 @@ let filteredY = 0.0;
 
 // 時域自適應坡度追蹤視窗
 let longTermBuffer = [];
-const LONG_WINDOW_SIZE = 100; // 採集約 3~5 秒之滑動視窗
+const LONG_WINDOW_SIZE = 100;
 
 // 運動學數據
 let currentSpeed = 0.0;      // 積分當前速度 (m/s)
@@ -478,7 +485,7 @@ let gpsWatchId = null;
 let currentGpsSpeedKmh = 0.0;// 當前 GPS 速度 (km/h)
 let maxGpsSpeedKmh = 0.0;    // GPS 最高速 (km/h)
 
-let lastTimestamp = null;
+let lastAccelTimestamp = null;
 let recordingStartTime = null;
 let totalRecordedTime = 0.0;
 
@@ -508,7 +515,8 @@ const biasDisplayYEl = document.getElementById('bias-display-y');
 const biasDisplayXEl = document.getElementById('bias-display-x');
 
 const btnZero = document.getElementById('btn-zero');
-const btnToggle = document.getElementById('btn-toggle');
+const btnToggleAccel = document.getElementById('btn-toggle-accel');
+const btnToggleGps = document.getElementById('btn-toggle-gps');
 const btnReset = document.getElementById('btn-reset');
 const lpfSlider = document.getElementById('lpf-slider');
 const lpfValEl = document.getElementById('lpf-val');
@@ -550,25 +558,19 @@ function processAccelerationAdaptive(rawY, yOffset, speedMps) {
   let cleanAccel = rawY - yOffset;
   const speedKmh = speedMps * 3.6;
 
-  // 1. 【極低速/起步階段】 (< 3 km/h)：
-  // 保持 0.015 m/s² 極小死區，保護各種運具的極微弱起步（如 EMU900 險阻慢行起步）
   if (speedKmh < 3.0) {
     return Math.abs(cleanAccel) < 0.015 ? 0 : cleanAccel;
   }
 
-  // 2. 維護長時間滑動視窗 (追蹤坡度直流分量)
   longTermBuffer.push(cleanAccel);
   if (longTermBuffer.length > LONG_WINDOW_SIZE) {
     longTermBuffer.shift();
   }
 
-  // 3. 計算長時域平均值 (Slope DC Offset)
   let sum = 0;
   for (let val of longTermBuffer) sum += val;
   let longTermAvg = sum / longTermBuffer.length;
 
-  // 4. 【坡度動態扣除】：
-  // 利用坡度「持續時間久、數值小且穩定」的特性，當 longTermAvg 落在常見坡度洩漏範圍 (-0.35 ~ +0.35 m/s²) 時，自動進行動態零點扣除
   if (Math.abs(longTermAvg) < 0.35) {
     cleanAccel = cleanAccel - longTermAvg;
   }
@@ -588,8 +590,6 @@ function initSensorListener() {
     filteredY = filteredY + lpfAlpha * (currentRawY - filteredY);
 
     let cleanAccelX = filteredX - xOffset;
-    
-    // 套用通用時域自適應濾波器處理 Y 軸
     let cleanAccelY = processAccelerationAdaptive(filteredY, yOffset, currentSpeed);
 
     accelValEl.textContent = cleanAccelY.toFixed(3);
@@ -599,26 +599,36 @@ function initSensorListener() {
     gXValEl.textContent = (cleanAccelX / 9.80665).toFixed(3);
 
     const now = performance.now();
-    if (isRecording) {
-      if (lastTimestamp !== null) {
-        let dt = (now - lastTimestamp) / 1000.0; 
+
+    // 只要有任一錄製模式開啟，就進行計時
+    if (isAccelRecording || isGpsRecording) {
+      if (recordingStartTime !== null) {
+        totalRecordedTime = (now - recordingStartTime) / 1000.0;
+        timerValEl.textContent = totalRecordedTime.toFixed(1);
+      }
+    }
+
+    // 僅在「積分錄製」開啟時才進行物理積分計算
+    if (isAccelRecording) {
+      if (lastAccelTimestamp !== null) {
+        let dt = (now - lastAccelTimestamp) / 1000.0; 
         if (dt > 0 && dt < 0.5) { 
 
-          // 1. ZUPT 靜止自動歸零 (消除進站停妥後的漂移殘量)
+          // ZUPT 靜止歸零
           if (cleanAccelY === 0 && currentSpeed < (3.0 / 3.6)) {
             stillFrameCount++;
-            if (stillFrameCount > 30) { // 連續約 1 秒極度平穩
+            if (stillFrameCount > 30) {
               currentSpeed = 0.0;
             }
           } else {
             stillFrameCount = 0;
           }
 
-          // 2. 一次積分：計算車速
+          // 一次積分：速度
           currentSpeed += cleanAccelY * dt;
           if (currentSpeed < 0) currentSpeed = 0; 
 
-          // 3. 二次積分：計算總位移
+          // 二次積分：位移
           totalDisplacement += currentSpeed * dt;
 
           let speedKmh = currentSpeed * 3.6;
@@ -636,12 +646,9 @@ function initSensorListener() {
             distValEl.textContent = totalDisplacement.toFixed(1);
             distUnitEl.textContent = "m";
           }
-
-          totalRecordedTime = (now - recordingStartTime) / 1000.0;
-          timerValEl.textContent = totalRecordedTime.toFixed(1);
         }
       }
-      lastTimestamp = now;
+      lastAccelTimestamp = now;
     }
   });
 }
@@ -658,14 +665,14 @@ function initGpsListener() {
 
   gpsWatchId = navigator.geolocation.watchPosition(
     (position) => {
-      const speedMps = position.coords.speed; // 單位 m/s
-      const accuracy = position.coords.accuracy; // 精度 (m)
+      const speedMps = position.coords.speed;
+      const accuracy = position.coords.accuracy;
 
       if (speedMps !== null && speedMps >= 0) {
         currentGpsSpeedKmh = speedMps * 3.6;
         gpsSpeedValEl.textContent = currentGpsSpeedKmh.toFixed(1);
 
-        if (isRecording && currentGpsSpeedKmh > maxGpsSpeedKmh) {
+        if (isGpsRecording && currentGpsSpeedKmh > maxGpsSpeedKmh) {
           maxGpsSpeedKmh = currentGpsSpeedKmh;
           gpsMaxSpeedValEl.textContent = maxGpsSpeedKmh.toFixed(1);
         }
@@ -697,6 +704,13 @@ function initGpsListener() {
 
 // --- 4. 按鈕事件綁定 ---
 
+// 檢查是否需要啟動全局計時
+function checkTimerStart() {
+  if (recordingStartTime === null && (isAccelRecording || isGpsRecording)) {
+    recordingStartTime = performance.now();
+  }
+}
+
 // 【矯正歸零按鈕】
 btnZero.addEventListener('click', () => {
   xOffset = filteredX;
@@ -706,7 +720,7 @@ btnZero.addEventListener('click', () => {
   currentSpeed = 0.0;
   totalDisplacement = 0.0;
   stillFrameCount = 0;
-  longTermBuffer = []; // 清空長時域視窗
+  longTermBuffer = [];
   
   speedValEl.textContent = "0.0";
   distValEl.textContent = "0.0";
@@ -719,40 +733,80 @@ btnZero.addEventListener('click', () => {
   calibStatusEl.textContent = "積分校準：雙軸已完成矯正歸零";
 });
 
-// 【START / STOP 開始與停止按鈕】
-btnToggle.addEventListener('click', () => {
-  if (!isCalibrated) {
-    if (!confirm("⚠️ 尚未執行矯正歸零，建議在列車靜止時點擊「矯正歸零」以避免重力漂移！確定要直接開始嗎？")) {
+// 【開啟/停止 積分錄製】
+btnToggleAccel.addEventListener('click', () => {
+  if (!isCalibrated && !isAccelRecording) {
+    if (!confirm("⚠️ 尚未執行矯正歸零，建議在靜止時按「矯正歸零」以避免重力漂移！確定要直接開始嗎？")) {
       return;
     }
   }
 
-  isRecording = !isRecording;
+  isAccelRecording = !isAccelRecording;
 
-  if (isRecording) {
-    btnToggle.textContent = "停止錄製";
-    btnToggle.style.background = "#e74c3c";
-    btnToggle.style.color = "#fff";
-    
-    lastTimestamp = performance.now();
-    recordingStartTime = lastTimestamp;
+  if (isAccelRecording) {
+    btnToggleAccel.textContent = "停止積分";
+    btnToggleAccel.className = "ctrl-btn btn-gmeter-recording";
+    lastAccelTimestamp = performance.now();
+    checkTimerStart();
   } else {
-    btnToggle.textContent = "開始錄製";
-    btnToggle.style.background = "#ff9800";
-    btnToggle.style.color = "#121212";
-
-    if (totalRecordedTime > 1.0) {
-      addRecord(maxSpeedKmh, maxGpsSpeedKmh, totalDisplacement, totalRecordedTime);
-    }
+    btnToggleAccel.textContent = "錄製積分";
+    btnToggleAccel.className = "ctrl-btn btn-gmeter-idle";
+    
+    // 停止積分時，若目前無其他錄製活動且有數據，則自動存檔
+    checkAndSaveRecord();
   }
 });
 
+// 【開啟/停止 GPS 錄製】
+btnToggleGps.addEventListener('click', () => {
+  if (gpsWatchId === null && !isGpsRecording) {
+    initGpsListener();
+  }
+
+  isGpsRecording = !isGpsRecording;
+
+  if (isGpsRecording) {
+    btnToggleGps.textContent = "停止 GPS";
+    btnToggleGps.className = "ctrl-btn btn-gps-recording";
+    checkTimerStart();
+  } else {
+    btnToggleGps.textContent = "錄製 GPS";
+    btnToggleGps.className = "ctrl-btn btn-gps-idle";
+
+    // 停止 GPS 時，若目前無其他錄製活動且有數據，則自動存檔
+    checkAndSaveRecord();
+  }
+});
+
+// 檢查是否所有錄製皆停止，並寫入觀測紀錄
+function checkAndSaveRecord() {
+  if (!isAccelRecording && !isGpsRecording) {
+    if (totalRecordedTime > 0.5) {
+      addRecord(
+        maxSpeedKmh, 
+        maxGpsSpeedKmh, 
+        totalDisplacement, 
+        totalRecordedTime, 
+        maxSpeedKmh > 0 || totalDisplacement > 0, 
+        maxGpsSpeedKmh > 0
+      );
+    }
+  }
+}
+
 // 【RESET 重置按鈕】
 btnReset.addEventListener('click', () => {
-  isRecording = false;
-  btnToggle.textContent = "開始錄製";
-  btnToggle.style.background = "#ff9800";
-  btnToggle.style.color = "#121212";
+  // 若在錄製狀態下按重置，先結算紀錄
+  if (isAccelRecording || isGpsRecording) {
+    isAccelRecording = false;
+    isGpsRecording = false;
+    btnToggleAccel.textContent = "錄製積分";
+    btnToggleAccel.className = "ctrl-btn btn-gmeter-idle";
+    btnToggleGps.textContent = "錄製 GPS";
+    btnToggleGps.className = "ctrl-btn btn-gps-idle";
+    
+    checkAndSaveRecord();
+  }
 
   currentSpeed = 0.0;
   maxSpeedKmh = 0.0;
@@ -760,7 +814,8 @@ btnReset.addEventListener('click', () => {
   totalDisplacement = 0.0;
   totalRecordedTime = 0.0;
   stillFrameCount = 0;
-  lastTimestamp = null;
+  lastAccelTimestamp = null;
+  recordingStartTime = null;
   longTermBuffer = [];
 
   speedValEl.textContent = "0.0";
@@ -779,27 +834,28 @@ lpfSlider.addEventListener('input', (e) => {
 });
 
 // --- 5. 歷史紀錄日誌與分頁系統 ---
-function addRecord(maxSpeed, maxGpsSpeed, displacement, duration) {
+function addRecord(maxSpeed, maxGpsSpeed, displacement, duration, hasAccelData, hasGpsData) {
   const timeStr = new Date().toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
   
-  let dispStr = displacement >= 1000 
-    ? (displacement / 1000).toFixed(2) + " km" 
-    : displacement.toFixed(1) + " m";
+  let dispStr = hasAccelData 
+    ? (displacement >= 1000 ? (displacement / 1000).toFixed(2) + " km" : displacement.toFixed(1) + " m")
+    : "---";
 
   records.unshift({
     id: Date.now(),
     time: timeStr,
-    maxSpeed: maxSpeed.toFixed(1) + " km/h",
-    maxGpsSpeed: maxGpsSpeed > 0 ? maxGpsSpeed.toFixed(1) + " km/h" : "N/A",
+    maxSpeed: hasAccelData ? maxSpeed.toFixed(1) + " km/h" : "N/A",
+    maxGpsSpeed: hasGpsData ? maxGpsSpeed.toFixed(1) + " km/h" : "N/A",
     disp: dispStr,
     duration: duration.toFixed(1) + " s"
   });
+  
   renderRecords();
 }
 
 function renderRecords() {
   if (records.length === 0) {
-    recordsTbody.innerHTML = `<tr><td colspan="6" class="placeholder-text">尚無觀測紀錄，按下 STOP 即自動存檔</td></tr>`;
+    recordsTbody.innerHTML = `<tr><td colspan="6" class="placeholder-text">尚無觀測紀錄，按下停止錄製即自動存檔</td></tr>`;
     btnPrevPage.disabled = true;
     btnNextPage.disabled = true;
     pageInfoEl.textContent = `第 1 / 1 頁`;
@@ -815,9 +871,9 @@ function renderRecords() {
   recordsTbody.innerHTML = pageRecords.map(r => `
     <tr>
       <td>${r.time}</td>
-      <td class="record-data-cell"><span class="record-badge badge-gmeter">${r.maxSpeed}</span></td>
-      <td class="record-data-cell"><span class="record-badge badge-gps">${r.maxGpsSpeed}</span></td>
-      <td style="color: #3498db; font-weight: 600;">${r.disp}</td>
+      <td class="record-data-cell"><span class="record-badge ${r.maxSpeed !== 'N/A' ? 'badge-gmeter' : 'badge-none'}">${r.maxSpeed}</span></td>
+      <td class="record-data-cell"><span class="record-badge ${r.maxGpsSpeed !== 'N/A' ? 'badge-gps' : 'badge-none'}">${r.maxGpsSpeed}</span></td>
+      <td style="color: ${r.disp !== '---' ? '#3498db' : '#666'}; font-weight: 600;">${r.disp}</td>
       <td>${r.duration}</td>
       <td><button class="btn-delete" onclick="deleteRecord(${r.id})">刪除</button></td>
     </tr>
