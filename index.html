@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>加速度積分 與 GPS測速器 2.1</title>
+  <title>加速度積分 與 GPS測速器 2.2</title>
   <style>
   /* --- 基礎設定 --- */
   * { box-sizing: border-box; }
@@ -442,6 +442,39 @@
 </div>
 
 <script>
+// --- 螢幕恆亮 Wake Lock 管理 ---
+let wakeLock = null;
+
+async function requestWakeLock() {
+  if ('wakeLock' in navigator) {
+    try {
+      wakeLock = await navigator.wakeLock.request('screen');
+    } catch (err) {
+      console.error(`${err.name}, ${err.message}`);
+    }
+  }
+}
+
+async function releaseWakeLock() {
+  if (wakeLock !== null) {
+    try {
+      await wakeLock.release();
+      wakeLock = null;
+    } catch (err) {
+      console.error(`${err.name}, ${err.message}`);
+    }
+  }
+}
+
+// 當頁面切換回前景時，若正在錄製則重新取得 Wake Lock
+document.addEventListener('visibilitychange', async () => {
+  if (wakeLock !== null && document.visibilityState === 'visible') {
+    if (isAccelRecording || isGpsRecording) {
+      await requestWakeLock();
+    }
+  }
+});
+
 // --- 一維卡爾曼濾波器類別 (Kalman Filter for Speed & Slope Bias) ---
 class SpeedKalmanFilter {
   constructor() {
@@ -741,12 +774,13 @@ function startRecordingTimer() {
   }
 }
 
-function stopRecordingTimerIfIdle() {
+async function checkWakeLockState() {
   if (!isAccelRecording && !isGpsRecording) {
     if (timerInterval !== null) {
       clearInterval(timerInterval);
       timerInterval = null;
     }
+    await releaseWakeLock(); // 當兩者皆停止時釋放螢幕恆亮
   }
 }
 
@@ -776,7 +810,7 @@ btnZero.addEventListener('click', () => {
 });
 
 // 開啟/停止 積分錄製
-btnToggleAccel.addEventListener('click', () => {
+btnToggleAccel.addEventListener('click', async () => {
   if (!isCalibrated && !isAccelRecording) {
     if (!confirm("⚠️ 尚未執行矯正歸零，建議在車站靜止時按下「矯正歸零」鎖定零點！確定要直接開始嗎？")) {
       return;
@@ -790,17 +824,18 @@ btnToggleAccel.addEventListener('click', () => {
     btnToggleAccel.className = "ctrl-btn btn-gmeter-recording";
     lastAccelTimestamp = performance.now();
     startRecordingTimer();
+    await requestWakeLock(); // 要求保持螢幕常亮
   } else {
     btnToggleAccel.textContent = "錄製積分";
     btnToggleAccel.className = "ctrl-btn btn-gmeter-idle";
     
     saveCurrentRecord(true, false);
-    stopRecordingTimerIfIdle();
+    await checkWakeLockState();
   }
 });
 
 // 開啟/停止 GPS 錄製
-btnToggleGps.addEventListener('click', () => {
+btnToggleGps.addEventListener('click', async () => {
   if (gpsWatchId === null && !isGpsRecording) {
     initGpsListener();
   }
@@ -811,12 +846,13 @@ btnToggleGps.addEventListener('click', () => {
     btnToggleGps.textContent = "停止 GPS";
     btnToggleGps.className = "ctrl-btn btn-gps-recording";
     startRecordingTimer();
+    await requestWakeLock(); // 要求保持螢幕常亮
   } else {
     btnToggleGps.textContent = "錄製 GPS";
     btnToggleGps.className = "ctrl-btn btn-gps-idle";
 
     saveCurrentRecord(false, true);
-    stopRecordingTimerIfIdle();
+    await checkWakeLockState();
   }
 });
 
@@ -835,7 +871,7 @@ function saveCurrentRecord(hasAccel, hasGps) {
 }
 
 // RESET 重置
-btnReset.addEventListener('click', () => {
+btnReset.addEventListener('click', async () => {
   if (isAccelRecording || isGpsRecording) {
     saveCurrentRecord(isAccelRecording, isGpsRecording);
   }
@@ -847,7 +883,11 @@ btnReset.addEventListener('click', () => {
   btnToggleGps.textContent = "錄製 GPS";
   btnToggleGps.className = "ctrl-btn btn-gps-idle";
   
-  stopRecordingTimerIfIdle();
+  await releaseWakeLock(); // 重置時解除螢幕常亮
+  if (timerInterval !== null) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
 
   speedKF.reset(); 
   currentSpeed = 0.0;
