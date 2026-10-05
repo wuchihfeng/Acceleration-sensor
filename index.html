@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>加速度積分 與 GPS測速器 3.0</title>
+  <title>加速度積分 與 GPS 測速器 3.5</title>
   <style>
   /* --- 基礎設定 --- */
   * { box-sizing: border-box; }
@@ -230,48 +230,16 @@
     z-index: 5;
   }
 
-  .graph-container.has-data .graph-placeholder {
-    opacity: 0;
-  }
+  .graph-container.has-data .graph-placeholder { opacity: 0; }
 
-  .graph-grid line {
-    stroke: #282828;
-    stroke-width: 1;
-    stroke-dasharray: 3, 3;
-  }
+  .graph-grid line { stroke: #282828; stroke-width: 1; stroke-dasharray: 3, 3; }
+  .graph-grid line.axis-line { stroke: #555555; stroke-width: 1.5; stroke-dasharray: none; }
 
-  .graph-grid line.axis-line {
-    stroke: #555555;
-    stroke-width: 1.5;
-    stroke-dasharray: none;
-  }
+  .vt-line-path { fill: none; stroke: #ff9800; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+  .vt-area-path { fill: #ff9800; fill-opacity: 0.15; stroke: none; }
 
-  .vt-line-path {
-    fill: none;
-    stroke: #ff9800;
-    stroke-width: 2.5;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
-
-  .vt-area-path {
-    fill: #ff9800;
-    fill-opacity: 0.15;
-    stroke: none;
-  }
-
-  .graph-labels text {
-    fill: #a0aec0;
-    font-size: 10px;
-    font-family: monospace !important;
-    user-select: none;
-  }
-
-  .graph-labels text.axis-title {
-    fill: #ff9800;
-    font-weight: bold;
-    font-size: 11px;
-  }
+  .graph-labels text { fill: #a0aec0; font-size: 10px; font-family: monospace !important; user-select: none; }
+  .graph-labels text.axis-title { fill: #ff9800; font-weight: bold; font-size: 11px; }
 
   .btn-reset-zoom {
     position: absolute;
@@ -291,13 +259,7 @@
   }
 
   /* --- 觀測紀錄區塊 --- */
-  .category-title {
-    color: #fff !important;      
-    font-size: 0.95rem;          
-    font-weight: 800;            
-    border-bottom: 2px solid #ff9800;
-  }
-
+  .category-title { color: #fff !important; font-size: 0.95rem; font-weight: 800; border-bottom: 2px solid #ff9800; }
   .record-card { margin-top: 15px; }
 
   .record-header {
@@ -321,135 +283,42 @@
     white-space: nowrap; 
   }
 
-  .record-table-wrapper {
-    width: 100%;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    border-radius: 6px;
-  }
+  .record-table-wrapper { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 6px; }
+  .record-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 11px; white-space: nowrap; }
+  .record-table th { padding: 8px 4px; border-bottom: 2px solid #333; color: #888; font-weight: 500; }
+  .record-table td { padding: 8px 4px; vertical-align: middle; }
+  .record-data-cell { font-family: 'Noto Sans Mono', ui-monospace, Consolas, monospace !important; font-weight: 700; }
 
-  .record-table {
-    width: 100%;
-    border-collapse: collapse;
-    text-align: left;
-    font-size: 11px;
-    white-space: nowrap; 
-  }
-
-  .record-table th {
-    padding: 8px 4px;
-    border-bottom: 2px solid #333;
-    color: #888;
-    font-weight: 500;
-  }
-
-  .record-table td {
-    padding: 8px 4px;
-    vertical-align: middle;
-  }
-
-  .record-data-cell {
-    font-family: 'Noto Sans Mono', ui-monospace, Consolas, monospace !important;
-    font-weight: 700;
-  }
-
-  .record-badge {
-    padding: 2px 4px;
-    border-radius: 4px;
-    font-size: 10px;
-    font-weight: 500;
-    display: inline-block;
-  }
-
+  .record-badge { padding: 2px 4px; border-radius: 4px; font-size: 10px; font-weight: 500; display: inline-block; }
   .badge-gmeter { background-color: rgba(255, 152, 0, 0.15); color: #ff9800; }
   .badge-gps { background-color: rgba(0, 188, 212, 0.15); color: #00bcd4; }
   .badge-none { background-color: rgba(120, 120, 120, 0.15); color: #777; }
 
-  .btn-delete {
-    background: #442222;
-    color: #ff6666;
-    border: 1px solid #663333;
-    padding: 3px 6px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 0.7rem;
-  }
+  .btn-delete { background: #442222; color: #ff6666; border: 1px solid #663333; padding: 3px 6px; border-radius: 4px; cursor: pointer; font-size: 0.7rem; }
 
-  .pagination-container {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 12px;
-    margin-top: 12px;
-  }
-
-  .btn-page {
-    background: #2a2a2a;
-    color: #ff9800;
-    border: 1px solid #ff9800;
-    padding: 3px 10px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-weight: bold;
-    font-size: 0.8rem;
-  }
-
+  .pagination-container { display: flex; justify-content: center; align-items: center; gap: 12px; margin-top: 12px; }
+  .btn-page { background: #2a2a2a; color: #ff9800; border: 1px solid #ff9800; padding: 3px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.8rem; }
   .btn-page:disabled { border-color: #444; color: #555; cursor: not-allowed; }
   .page-info { font-size: 0.8rem; color: #aaa; }
 
-  .status-tag {
-    font-size: 0.72rem;
-    padding: 3px 6px;
-    border-radius: 4px;
-    display: inline-block;
-  }
+  .status-tag { font-size: 0.72rem; padding: 3px 6px; border-radius: 4px; display: inline-block; }
   .status-active { background: rgba(46, 204, 113, 0.2); color: #2ecc71; border: 1px solid #2ecc71; }
   .status-inactive { background: rgba(231, 76, 60, 0.2); color: #e74c3c; border: 1px solid #e74c3c; }
   .status-gps { background: rgba(0, 188, 212, 0.2); color: #00bcd4; border: 1px solid #00bcd4; }
   .placeholder-text { color: #555; text-align: center; font-size: 0.8rem; padding: 15px 0; }
     
   /* --- v-t 圖表互動指示器與 Tooltip 樣式 --- */
-  #vtGuideLine {
-      stroke: #ff9800;
-      stroke-width: 1.5;
-      stroke-dasharray: 4, 4;
-      opacity: 0.8;
-  }
-
-  #vtFocusPoint {
-      fill: #1e1e1e;
-      stroke: #ff9800;
-      stroke-width: 2.5;
-      filter: drop-shadow(0px 0px 4px rgba(255, 152, 0, 0.8));
-  }
-
-  #vtTooltipBg {
-      fill: #1e1e1e;
-      stroke: #ff9800;
-      stroke-width: 1;
-      rx: 6px;
-      ry: 6px;
-      filter: drop-shadow(0px 4px 10px rgba(0, 0, 0, 0.6));
-  }
-
-  #vtTooltipTime {
-      fill: #aaaaaa;
-      font-size: 10px;
-      font-family: 'Noto Sans Mono', monospace !important;
-  }
-
-  #vtTooltipSpeed {
-      fill: #ffffff;
-      font-size: 12px;
-      font-weight: 700;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  }
+  #vtGuideLine { stroke: #ff9800; stroke-width: 1.5; stroke-dasharray: 4, 4; opacity: 0.8; }
+  #vtFocusPoint { fill: #1e1e1e; stroke: #ff9800; stroke-width: 2.5; filter: drop-shadow(0px 0px 4px rgba(255, 152, 0, 0.8)); }
+  #vtTooltipBg { fill: #1e1e1e; stroke: #ff9800; stroke-width: 1; rx: 6px; ry: 6px; filter: drop-shadow(0px 4px 10px rgba(0, 0, 0, 0.6)); }
+  #vtTooltipTime { fill: #aaaaaa; font-size: 10px; font-family: 'Noto Sans Mono', monospace !important; }
+  #vtTooltipSpeed { fill: #ffffff; font-size: 12px; font-weight: 700; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
   </style>
 </head>
 <body>
 
 <div class="calculator">
-  <h1>加速度積分 與 GPS測速器</h1>
+  <h1>加速度積分 與 GPS 互補校準測速器</h1>
 
   <!-- 權限要求按鈕列 -->
   <div id="permission-btn-container" style="margin-bottom: 12px; display: flex; gap: 8px;">
@@ -466,11 +335,11 @@
   <!-- 速度對照雙卡片 -->
   <div class="speed-compare-grid">
     <div class="speed-card">
-      <div class="speed-card-title">積分速度</div>
+      <div class="speed-card-title">積分速度 (GPS校正)</div>
       <div class="speed-val-lg gmeter-color"><span id="speed-val">0.0</span><span class="unit">km/h</span></div>
     </div>
     <div class="speed-card">
-      <div class="speed-card-title">GPS速度</div>
+      <div class="speed-card-title">GPS 速度</div>
       <div class="speed-val-lg gps-color"><span id="gps-speed-val">0.0</span><span class="unit">km/h</span></div>
     </div>
   </div>
@@ -522,13 +391,13 @@
 
   <!-- 參數與偏置設定面板 -->
   <div class="helper-box">
-    <span class="helper-label">平滑低通濾波設定</span>
+    <span class="helper-label">平滑低通濾波與動態校準</span>
     <label for="lpf-slider" style="font-size: 0.78rem; color: #aaa;">低通濾波強度 (Smoothing Alpha: <span id="lpf-val">0.20</span>)</label>
     <div class="helper-inputs">
       <input type="range" id="lpf-slider" min="0.01" max="0.30" step="0.01" value="0.20">
     </div>
 
-    <label style="font-size: 0.78rem; color: #aaa;">Y 軸校準零點偏置 (Bias Offset):</label>
+    <label style="font-size: 0.78rem; color: #aaa;">Y 軸動態學習零點偏置 (Bias Offset):</label>
     <div class="helper-inputs">
       <input type="text" id="bias-display-y" value="0.0000 m/s²" readonly>
     </div>
@@ -541,19 +410,15 @@
       開始錄製積分後將繪製 v-t 曲線圖
     </div>
     <svg id="vtGraph" viewBox="0 0 500 280" preserveAspectRatio="none">
-      <!-- 包含動態曲線與網格（會隨雙指放大/平移） -->
       <g id="vtZoomGroup">
         <g id="vtGrid" class="graph-grid"></g>
         <path id="vtArea" class="vt-area-path" d="" />
         <path id="vtLine" class="vt-line-path" d="" />
       </g>
       
-      <!-- 固定在最上層、位置動態計算的 X 軸刻度文字 (保證不會被拉扁) -->
       <g id="vtZoomLabels" class="graph-labels"></g>
-      <!-- 固定在最上層不動的 Y 軸標籤與軸線標題 -->
       <g id="vtFixedLabels" class="graph-labels"></g>
 
-      <!-- 互動懸浮指示器 -->
       <g id="vtInteractive" style="display: none; pointer-events: none;">
         <line id="vtGuideLine" x1="0" y1="25" x2="0" y2="240" />
         <circle id="vtFocusPoint" r="5" />
@@ -594,7 +459,6 @@
       </table>
     </div>
 
-    <!-- 分頁選單 -->
     <div class="pagination-container">
       <button id="btn-prev-page" class="btn-page" disabled>上一頁</button>
       <span id="page-info" class="page-info">第 1 / 1 頁</span>
@@ -603,7 +467,7 @@
   </div>
  
   <div style="text-align: center; font-size: 0.75rem; color: #555; margin-top: 15px;">
-    v3.0
+    v3.5
   </div>
 </div>
 
@@ -635,44 +499,6 @@ document.addEventListener('visibilitychange', async () => {
   }
 });
 
-// --- 一維卡爾曼濾波器類別 ---
-class SpeedKalmanFilter {
-  constructor() {
-    this.v = 0.0;     
-    this.b = 0.0;     
-    this.P = [[1.0, 0.0], [0.0, 1.0]];
-    this.Q_accel = 0.05; 
-    this.Q_bias = 0.001; 
-    this.R_meas = 0.15;  
-  }
-
-  reset() {
-    this.v = 0.0;
-    this.b = 0.0;
-    this.P = [[1.0, 0.0], [0.0, 1.0]];
-  }
-
-  update(rawAccelY, dt) {
-    if (dt <= 0) return this.v;
-    let pureAccel = rawAccelY - this.b;
-    this.v += pureAccel * dt;
-    if (this.v < 0) this.v = 0; 
-
-    this.P[0][0] += (this.Q_accel + this.P[1][1]) * dt * dt;
-    this.P[1][1] += this.Q_bias * dt;
-
-    if (Math.abs(pureAccel) < 0.04) {
-      let innovation = rawAccelY - this.b;
-      let K_bias = this.P[1][1] / (this.P[1][1] + this.R_meas);
-      this.b += K_bias * innovation;
-      this.P[1][1] *= (1 - K_bias);
-    }
-    return this.v;
-  }
-}
-
-const speedKF = new SpeedKalmanFilter();
-
 // --- 核心變數 ---
 let isAccelRecording = false; 
 let isGpsRecording = false;   
@@ -686,19 +512,22 @@ let currentRawY = 0.0;
 let filteredX = 0.0;
 let filteredY = 0.0;
 
-let currentSpeed = 0.0;      
+let currentSpeed = 0.0;      // m/s
 let maxSpeedKmh = 0.0;       
 let totalDisplacement = 0.0; 
-let stillFrameCount = 0;
 
 let maxAccelVal = 0.0;
 let maxDecelVal = 0.0;
 
-// GPS 變數
+// GPS 變數與動態校準參數
 let gpsWatchId = null;
+let currentGpsSpeedMps = -1.0;
 let currentGpsSpeedKmh = 0.0;
 let maxGpsSpeedKmh = 0.0;    
 let totalGpsDisplacement = 0.0;
+let currentGpsAccuracy = 999.0;
+let lastGpsUpdateTime = 0;
+
 let lastLat = null;
 let lastLon = null;
 
@@ -804,7 +633,7 @@ document.getElementById('btn-request-gps').addEventListener('click', () => {
   initGpsListener();
 });
 
-// 感測器監聽
+// ====== 感測器監聽：含 GPS 即時 Bias 校準引擎 ======
 function initSensorListener() {
   window.addEventListener('devicemotion', (event) => {
     if (!event.accelerationIncludingGravity) return;
@@ -812,13 +641,15 @@ function initSensorListener() {
     currentRawX = (event.accelerationIncludingGravity.x || 0.0) * axisMultiplier;
     currentRawY = (event.accelerationIncludingGravity.y || 0.0) * axisMultiplier;
 
+    // 低通濾波
     filteredX = filteredX + lpfAlpha * (currentRawX - filteredX);
     filteredY = filteredY + lpfAlpha * (currentRawY - filteredY);
 
     let cleanAccelX = filteredX - xOffset;
     let cleanAccelY = filteredY - yOffset;
 
-    if (Math.abs(cleanAccelY) < 0.03) cleanAccelY = 0.0;
+    // 極小微震 Deadband 濾除
+    if (Math.abs(cleanAccelY) < 0.008) cleanAccelY = 0.0;
 
     accelValEl.textContent = cleanAccelY.toFixed(3);
     gValEl.textContent = (cleanAccelY / 9.80665).toFixed(3);
@@ -843,17 +674,36 @@ function initSensorListener() {
       if (lastAccelTimestamp !== null) {
         let dt = (now - lastAccelTimestamp) / 1000.0; 
         if (dt > 0 && dt < 0.5) { 
-          if (cleanAccelY === 0 && currentSpeed < (2.0 / 3.6)) {
-            stillFrameCount++;
-            if (stillFrameCount > 30) {
-              currentSpeed = 0.0;
-              speedKF.v = 0.0; 
+          
+          // 1. IMU 前向速度推算
+          currentSpeed += cleanAccelY * dt;
+
+          // 2. 利用 GPS 進行動態偏置 (Bias) 自動校準
+          let isGpsFresh = (now - lastGpsUpdateTime) < 2000;
+
+          if (isGpsFresh && currentGpsAccuracy < 25 && currentGpsSpeedMps >= 0) {
+            let speedError = currentSpeed - currentGpsSpeedMps;
+
+            // 微調速度 (向 GPS 靠攏，學習率 0.15)
+            currentSpeed -= speedError * 0.15;
+
+            // 反向動態調整 yOffset（自動學習斜坡重力分量）
+            yOffset += (speedError / dt) * 0.005; 
+
+            if (biasDisplayYEl) {
+              biasDisplayYEl.value = yOffset.toFixed(4) + " m/s²";
             }
-          } else {
-            stillFrameCount = 0;
           }
 
-          currentSpeed = speedKF.update(cleanAccelY, dt);
+          // 3. 邊界約束防護
+          if (currentSpeed < 0) currentSpeed = 0.0; // 推進方向非負
+
+          // 車站靜止強行歸零鎖定
+          if (isGpsFresh && currentGpsSpeedMps < 0.15 && Math.abs(cleanAccelY) < 0.03) {
+            currentSpeed = 0.0;
+            yOffset = filteredY; // 更新最新靜止 Bias
+          }
+
           totalDisplacement += currentSpeed * dt;
 
           let speedKmh = currentSpeed * 3.6;
@@ -905,8 +755,12 @@ function initGpsListener() {
       const lat = position.coords.latitude;
       const lon = position.coords.longitude;
 
-      if (speedMps !== null && speedMps >= 0) {
+      currentGpsAccuracy = accuracy || 999;
+
+      if (speedMps !== null && !isNaN(speedMps) && speedMps >= 0) {
+        currentGpsSpeedMps = speedMps;
         currentGpsSpeedKmh = speedMps * 3.6;
+        lastGpsUpdateTime = performance.now();
         gpsSpeedValEl.textContent = currentGpsSpeedKmh.toFixed(1);
 
         if (isGpsRecording && currentGpsSpeedKmh > maxGpsSpeedKmh) {
@@ -915,6 +769,7 @@ function initGpsListener() {
         }
       } else {
         gpsSpeedValEl.textContent = "0.0";
+        currentGpsSpeedMps = -1.0;
       }
 
       if (lastLat !== null && lastLon !== null && accuracy < 35) {
@@ -937,7 +792,7 @@ function initGpsListener() {
       gpsStatusEl.textContent = `GPS 定位：訊號良好 (精度 ±${Math.round(accuracy)}m)`;
     },
     () => { gpsStatusEl.className = "status-tag status-inactive"; gpsStatusEl.textContent = "GPS 定位：訊號微弱"; },
-    { enableHighAccuracy: true, maximumAge: 1000, timeout: 5000 }
+    { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
   );
 }
 
@@ -947,7 +802,7 @@ function initVtGraphGrid() {
   initVtGraphInteractivity();
 }
 
-// 核心：動態繪製刻度與 v-t 數據曲線
+// 繪製刻度與 v-t 數據曲線
 function updateVtGraph() {
   const paddingLeft = 45;
   const paddingRight = 20;
@@ -960,7 +815,6 @@ function updateVtGraph() {
   const maxV = Math.max(maxSpeedKmh, 5); 
   const maxT = vtPointsData.length > 1 ? Math.max(vtPointsData[vtPointsData.length - 1].t, 5) : 10;
 
-  // 1. 自動繪製 Y 軸與 X 軸網格線
   const numYTicks = 5;
   const vStep = maxV / numYTicks;
   const yStepPx = graphHeight / numYTicks;
@@ -975,7 +829,6 @@ function updateVtGraph() {
     <text x="${paddingLeft - 10}" y="15" text-anchor="start" class="axis-title">速度 (km/h)</text>
   `;
 
-  // 繪製 Y 軸 (速度) 刻度與網格
   for (let i = 0; i <= numYTicks; i++) {
     const yPx = paddingBottom - (i * yStepPx);
     const vValue = (i * vStep).toFixed(1);
@@ -989,7 +842,6 @@ function updateVtGraph() {
     fixedLabelsHtml += `<text x="${paddingLeft - 8}" y="${yPx + 4}" text-anchor="end">${vValue}</text>`;
   }
 
-  // 繪製 X 軸網格線 (打入被放大的 Zoom Group)
   gridLines += `<line x1="${paddingLeft}" y1="${paddingTop}" x2="${paddingLeft}" y2="${paddingBottom}" class="axis-line" />`;
   for (let i = 1; i <= numXTicks; i++) {
     const xPx = paddingLeft + (i * xStepPx);
@@ -999,14 +851,12 @@ function updateVtGraph() {
   vtGrid.innerHTML = gridLines;
   vtFixedLabels.innerHTML = fixedLabelsHtml;
 
-  // 動態繪製與更新 X 軸時間文字 (獨立外置，防變形)
   let zoomLabelsHtml = '';
   for (let i = 0; i <= numXTicks; i++) {
     const baseX = paddingLeft + (i * xStepPx);
     const scaledX = baseX * zoomScale + panTranslateX;
     const tValue = (i * tStep).toFixed(1);
 
-    // 當刻度滑出顯示區域外時進行隱藏裁切
     if (scaledX >= paddingLeft - 10 && scaledX <= 500 - paddingRight + 10) {
       zoomLabelsHtml += `<text x="${scaledX.toFixed(1)}" y="${paddingBottom + 16}" text-anchor="middle">${tValue}s</text>`;
     }
@@ -1020,7 +870,6 @@ function updateVtGraph() {
 
   vtContainer.classList.add('has-data');
 
-  // 2. 轉換數據點至 SVG 座標
   const svgPoints = vtPointsData.map(p => {
     const x = paddingLeft + (p.t / maxT) * graphWidth;
     const y = paddingBottom - (p.v / maxV) * graphHeight; 
@@ -1042,7 +891,6 @@ function updateVtGraph() {
   applyZoomTransform();
 }
 
-// 套用縮放與平移 Transform
 function applyZoomTransform() {
   vtZoomGroup.setAttribute('transform', `translate(${panTranslateX}, 0) scale(${zoomScale}, 1)`);
   
@@ -1052,7 +900,6 @@ function applyZoomTransform() {
     btnResetZoom.style.display = "none";
   }
 
-  // 重新計算並更新文字刻度位置
   const paddingLeft = 45;
   const paddingRight = 20;
   const graphWidth = 500 - paddingLeft - paddingRight;
@@ -1074,7 +921,6 @@ function applyZoomTransform() {
   vtZoomLabels.innerHTML = zoomLabelsHtml;
 }
 
-// 核心互動：雙指放大與拖曳平移
 function initVtGraphInteractivity() {
   const getPinchDistance = (e) => {
     const dx = e.touches[0].clientX - e.touches[1].clientX;
@@ -1089,7 +935,6 @@ function initVtGraphInteractivity() {
     vtInteractive.style.display = "none";
   });
 
-  // 雙指觸控手勢
   vtContainer.addEventListener('touchstart', (e) => {
     if (e.touches.length === 2) {
       initialPinchDistance = getPinchDistance(e);
@@ -1109,9 +954,8 @@ function initVtGraphInteractivity() {
     if (e.touches.length === 2 && initialPinchDistance) {
       const currentDistance = getPinchDistance(e);
       const scaleFactor = currentDistance / initialPinchDistance;
-      zoomScale = Math.min(Math.max(initialScale * scaleFactor, 1.0), 5.0); // 最大放大 5 倍
+      zoomScale = Math.min(Math.max(initialScale * scaleFactor, 1.0), 5.0); 
       
-      // 邊界卡位
       const maxPan = 0;
       const minPan = -(500 * (zoomScale - 1));
       if (panTranslateX < minPan) panTranslateX = minPan;
@@ -1141,7 +985,6 @@ function initVtGraphInteractivity() {
     }
   });
 
-  // 滑鼠懸浮與動態 Cursor 提示
   const handlePointer = (e) => {
     if (vtPointsData.length < 2) return;
 
@@ -1149,7 +992,6 @@ function initVtGraphInteractivity() {
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     let mouseX = ((clientX - rect.left) / rect.width) * 500;
 
-    // 將滑鼠座標換算回縮放/平移後的真正數據座標
     mouseX = (mouseX - panTranslateX) / zoomScale;
 
     const paddingLeft = 45;
@@ -1183,7 +1025,6 @@ function initVtGraphInteractivity() {
 
     vtInteractive.style.display = "block";
 
-    // 計算經變形後的實際 SVG 螢幕顯示座標
     const screenX = closestPoint.x * zoomScale + panTranslateX;
 
     vtGuideLine.setAttribute('x1', screenX);
@@ -1250,11 +1091,9 @@ btnZero.addEventListener('click', () => {
   yOffset = filteredY;
   isCalibrated = true;
 
-  speedKF.reset(); 
   currentSpeed = 0.0;
   totalDisplacement = 0.0;
   totalGpsDisplacement = 0.0;
-  stillFrameCount = 0;
   maxAccelVal = 0.0;
   maxDecelVal = 0.0;
   vtPointsData = [];
@@ -1353,7 +1192,6 @@ btnReset.addEventListener('click', async () => {
     timerInterval = null;
   }
 
-  speedKF.reset(); 
   currentSpeed = 0.0;
   maxSpeedKmh = 0.0;
   maxGpsSpeedKmh = 0.0;
@@ -1362,7 +1200,6 @@ btnReset.addEventListener('click', async () => {
   totalDisplacement = 0.0;
   totalGpsDisplacement = 0.0;
   totalRecordedTime = 0.0;
-  stillFrameCount = 0;
   lastAccelTimestamp = null;
   recordingStartTime = null;
 
