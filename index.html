@@ -541,14 +541,15 @@
       開始錄製積分後將繪製 v-t 曲線圖
     </div>
     <svg id="vtGraph" viewBox="0 0 500 280" preserveAspectRatio="none">
-      <!-- 包含動態曲線、網格與 X 軸時間刻度（隨雙指縮放/平移） -->
+      <!-- 包含動態曲線與網格（會隨雙指放大/平移） -->
       <g id="vtZoomGroup">
         <g id="vtGrid" class="graph-grid"></g>
-        <g id="vtZoomLabels" class="graph-labels"></g>
         <path id="vtArea" class="vt-area-path" d="" />
         <path id="vtLine" class="vt-line-path" d="" />
       </g>
       
+      <!-- 固定在最上層、位置動態計算的 X 軸刻度文字 (保證不會被拉扁) -->
+      <g id="vtZoomLabels" class="graph-labels"></g>
       <!-- 固定在最上層不動的 Y 軸標籤與軸線標題 -->
       <g id="vtFixedLabels" class="graph-labels"></g>
 
@@ -969,7 +970,6 @@ function updateVtGraph() {
   const xStepPx = graphWidth / numXTicks;
 
   let gridLines = '';
-  let zoomLabelsHtml = '';
   let fixedLabelsHtml = `
     <text x="${500 - paddingRight}" y="${paddingBottom + 32}" text-anchor="end" class="axis-title">時間 (s)</text>
     <text x="${paddingLeft - 10}" y="15" text-anchor="start" class="axis-title">速度 (km/h)</text>
@@ -989,23 +989,29 @@ function updateVtGraph() {
     fixedLabelsHtml += `<text x="${paddingLeft - 8}" y="${yPx + 4}" text-anchor="end">${vValue}</text>`;
   }
 
-  // 繪製 X 軸 (時間秒數) 刻度與網格（打包進會被放大的群組內）
+  // 繪製 X 軸網格線 (打入被放大的 Zoom Group)
   gridLines += `<line x1="${paddingLeft}" y1="${paddingTop}" x2="${paddingLeft}" y2="${paddingBottom}" class="axis-line" />`;
-
-  for (let i = 0; i <= numXTicks; i++) {
+  for (let i = 1; i <= numXTicks; i++) {
     const xPx = paddingLeft + (i * xStepPx);
-    const tValue = (i * tStep).toFixed(1);
-
-    if (i > 0) {
-      gridLines += `<line x1="${xPx}" y1="${paddingTop}" x2="${xPx}" y2="${paddingBottom}" />`;
-    }
-    // X 軸秒數文字放置在 vtZoomLabels，跟著曲線一同放大切換
-    zoomLabelsHtml += `<text x="${xPx}" y="${paddingBottom + 16}" text-anchor="middle">${tValue}s</text>`;
+    gridLines += `<line x1="${xPx}" y1="${paddingTop}" x2="${xPx}" y2="${paddingBottom}" />`;
   }
 
   vtGrid.innerHTML = gridLines;
-  vtZoomLabels.innerHTML = zoomLabelsHtml;
   vtFixedLabels.innerHTML = fixedLabelsHtml;
+
+  // 動態繪製與更新 X 軸時間文字 (獨立外置，防變形)
+  let zoomLabelsHtml = '';
+  for (let i = 0; i <= numXTicks; i++) {
+    const baseX = paddingLeft + (i * xStepPx);
+    const scaledX = baseX * zoomScale + panTranslateX;
+    const tValue = (i * tStep).toFixed(1);
+
+    // 當刻度滑出顯示區域外時進行隱藏裁切
+    if (scaledX >= paddingLeft - 10 && scaledX <= 500 - paddingRight + 10) {
+      zoomLabelsHtml += `<text x="${scaledX.toFixed(1)}" y="${paddingBottom + 16}" text-anchor="middle">${tValue}s</text>`;
+    }
+  }
+  vtZoomLabels.innerHTML = zoomLabelsHtml;
 
   if (vtPointsData.length < 2) {
     vtInteractive.style.display = "none";
@@ -1039,11 +1045,33 @@ function updateVtGraph() {
 // 套用縮放與平移 Transform
 function applyZoomTransform() {
   vtZoomGroup.setAttribute('transform', `translate(${panTranslateX}, 0) scale(${zoomScale}, 1)`);
+  
   if (zoomScale > 1.05 || Math.abs(panTranslateX) > 1) {
     btnResetZoom.style.display = "block";
   } else {
     btnResetZoom.style.display = "none";
   }
+
+  // 重新計算並更新文字刻度位置
+  const paddingLeft = 45;
+  const paddingRight = 20;
+  const graphWidth = 500 - paddingLeft - paddingRight;
+  const numXTicks = 5;
+  const xStepPx = graphWidth / numXTicks;
+  const maxT = vtPointsData.length > 1 ? Math.max(vtPointsData[vtPointsData.length - 1].t, 5) : 10;
+  const tStep = maxT / numXTicks;
+
+  let zoomLabelsHtml = '';
+  for (let i = 0; i <= numXTicks; i++) {
+    const baseX = paddingLeft + (i * xStepPx);
+    const scaledX = baseX * zoomScale + panTranslateX;
+    const tValue = (i * tStep).toFixed(1);
+
+    if (scaledX >= paddingLeft - 10 && scaledX <= 500 - paddingRight + 10) {
+      zoomLabelsHtml += `<text x="${scaledX.toFixed(1)}" y="256" text-anchor="middle">${tValue}s</text>`;
+    }
+  }
+  vtZoomLabels.innerHTML = zoomLabelsHtml;
 }
 
 // 核心互動：雙指放大與拖曳平移
