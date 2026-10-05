@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>加速度積分 與 GPS測速器 2.2</title>
+  <title>加速度積分 與 GPS測速器 2.3</title>
   <style>
   /* --- 基礎設定 --- */
   * { box-sizing: border-box; }
@@ -442,6 +442,13 @@
 </div>
 
 <script>
+// --- 平台自動偵測 (iOS 判斷) ---
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+              (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+// 如果是 iOS，軸向符號通常與 Android 相反，設定反轉係數為 -1，否則為 1
+const axisMultiplier = isIOS ? -1.0 : 1.0;
+
 // --- 螢幕恆亮 Wake Lock 管理 ---
 let wakeLock = null;
 
@@ -466,7 +473,6 @@ async function releaseWakeLock() {
   }
 }
 
-// 當頁面切換回前景時，若正在錄製則重新取得 Wake Lock
 document.addEventListener('visibilitychange', async () => {
   if (wakeLock !== null && document.visibilityState === 'visible') {
     if (isAccelRecording || isGpsRecording) {
@@ -475,20 +481,18 @@ document.addEventListener('visibilitychange', async () => {
   }
 });
 
-// --- 一維卡爾曼濾波器類別 (Kalman Filter for Speed & Slope Bias) ---
+// --- 一維卡爾曼濾波器類別 ---
 class SpeedKalmanFilter {
   constructor() {
-    this.v = 0.0;     // 估算速度 (m/s)
-    this.b = 0.0;     // 估算坡度/零點動態偏置 (m/s²)
-    this.P = [        // 協方差矩陣
+    this.v = 0.0;     
+    this.b = 0.0;     
+    this.P = [        
       [1.0, 0.0],
       [0.0, 1.0]
     ];
-    
-    // 雜訊調整參數
-    this.Q_accel = 0.05; // 火車真實加速度變化雜訊
-    this.Q_bias = 0.001; // 坡度改變率 (坡度通常平緩漸變)
-    this.R_meas = 0.15;  // 感測器雜訊
+    this.Q_accel = 0.05; 
+    this.Q_bias = 0.001; 
+    this.R_meas = 0.15;  
   }
 
   reset() {
@@ -500,21 +504,16 @@ class SpeedKalmanFilter {
   update(rawAccelY, dt) {
     if (dt <= 0) return this.v;
 
-    // 1. 狀態預測 (Predict)
     let pureAccel = rawAccelY - this.b;
     this.v += pureAccel * dt;
-    if (this.v < 0) this.v = 0; // 約束：列車不倒退
+    if (this.v < 0) this.v = 0; 
 
-    // 協方差外推
     this.P[0][0] += (this.Q_accel + this.P[1][1]) * dt * dt;
     this.P[1][1] += this.Q_bias * dt;
 
-    // 2. 自適應動態修正與定速/零速約束 (ZUPT / Const Velocity Update)
     if (Math.abs(pureAccel) < 0.04) {
       let innovation = rawAccelY - this.b;
       let K_bias = this.P[1][1] / (this.P[1][1] + this.R_meas);
-      
-      // 更新並消化動態坡度偏置
       this.b += K_bias * innovation;
       this.P[1][1] *= (1 - K_bias);
     }
@@ -523,7 +522,6 @@ class SpeedKalmanFilter {
   }
 }
 
-// 實體化卡爾曼濾波器
 const speedKF = new SpeedKalmanFilter();
 
 // --- 核心變數 ---
@@ -544,7 +542,6 @@ let maxSpeedKmh = 0.0;
 let totalDisplacement = 0.0; 
 let stillFrameCount = 0;
 
-// 極值加速度追蹤變數
 let maxAccelVal = 0.0;
 let maxDecelVal = 0.0;
 
@@ -629,8 +626,9 @@ function initSensorListener() {
   window.addEventListener('devicemotion', (event) => {
     if (!event.accelerationIncludingGravity) return;
     
-    currentRawX = event.accelerationIncludingGravity.x || 0.0;
-    currentRawY = event.accelerationIncludingGravity.y || 0.0;
+    // 套用平台方向係數 (iOS 自動反轉)
+    currentRawX = (event.accelerationIncludingGravity.x || 0.0) * axisMultiplier;
+    currentRawY = (event.accelerationIncludingGravity.y || 0.0) * axisMultiplier;
 
     // 低通濾波
     filteredX = filteredX + lpfAlpha * (currentRawX - filteredX);
@@ -653,7 +651,6 @@ function initSensorListener() {
     const now = performance.now();
 
     if (isAccelRecording) {
-      // 即時捕捉最大加速度與最大減速度
       if (cleanAccelY > maxAccelVal) {
         maxAccelVal = cleanAccelY;
         maxAccelValEl.textContent = maxAccelVal.toFixed(3);
@@ -670,7 +667,6 @@ function initSensorListener() {
         let dt = (now - lastAccelTimestamp) / 1000.0; 
         if (dt > 0 && dt < 0.5) { 
 
-          // 靜止歸零判定
           if (cleanAccelY === 0 && currentSpeed < (2.0 / 3.6)) {
             stillFrameCount++;
             if (stillFrameCount > 30) {
@@ -681,9 +677,7 @@ function initSensorListener() {
             stillFrameCount = 0;
           }
 
-          // 卡爾曼濾波器進行估算與更新
           currentSpeed = speedKF.update(cleanAccelY, dt);
-
           totalDisplacement += currentSpeed * dt;
 
           let speedKmh = currentSpeed * 3.6;
@@ -780,11 +774,11 @@ async function checkWakeLockState() {
       clearInterval(timerInterval);
       timerInterval = null;
     }
-    await releaseWakeLock(); // 當兩者皆停止時釋放螢幕恆亮
+    await releaseWakeLock();
   }
 }
 
-// 矯正歸零：鎖定靜態零點偏置
+// 矯正歸零
 btnZero.addEventListener('click', () => {
   xOffset = filteredX;
   yOffset = filteredY;
@@ -806,7 +800,7 @@ btnZero.addEventListener('click', () => {
   biasDisplayYEl.value = yOffset.toFixed(4) + " m/s²";
 
   calibStatusEl.className = "status-tag status-active";
-  calibStatusEl.textContent = "已完成校準：靜態零點偏置已鎖定";
+  calibStatusEl.textContent = "已完成校準：靜態零點偏置已鎖定" + (isIOS ? " (iOS 模式已自動對齊軸向)" : "");
 });
 
 // 開啟/停止 積分錄製
@@ -824,7 +818,7 @@ btnToggleAccel.addEventListener('click', async () => {
     btnToggleAccel.className = "ctrl-btn btn-gmeter-recording";
     lastAccelTimestamp = performance.now();
     startRecordingTimer();
-    await requestWakeLock(); // 要求保持螢幕常亮
+    await requestWakeLock();
   } else {
     btnToggleAccel.textContent = "錄製積分";
     btnToggleAccel.className = "ctrl-btn btn-gmeter-idle";
@@ -846,7 +840,7 @@ btnToggleGps.addEventListener('click', async () => {
     btnToggleGps.textContent = "停止 GPS";
     btnToggleGps.className = "ctrl-btn btn-gps-recording";
     startRecordingTimer();
-    await requestWakeLock(); // 要求保持螢幕常亮
+    await requestWakeLock();
   } else {
     btnToggleGps.textContent = "錄製 GPS";
     btnToggleGps.className = "ctrl-btn btn-gps-idle";
@@ -856,7 +850,6 @@ btnToggleGps.addEventListener('click', async () => {
   }
 });
 
-// 寫入紀錄核心邏輯
 function saveCurrentRecord(hasAccel, hasGps) {
   if (totalRecordedTime > 0.2) {
     addRecord(
@@ -883,7 +876,7 @@ btnReset.addEventListener('click', async () => {
   btnToggleGps.textContent = "錄製 GPS";
   btnToggleGps.className = "ctrl-btn btn-gps-idle";
   
-  await releaseWakeLock(); // 重置時解除螢幕常亮
+  await releaseWakeLock();
   if (timerInterval !== null) {
     clearInterval(timerInterval);
     timerInterval = null;
@@ -917,7 +910,6 @@ lpfSlider.addEventListener('input', (e) => {
   lpfValEl.textContent = lpfAlpha.toFixed(2);
 });
 
-// 日誌渲染與分頁
 function addRecord(maxSpeed, maxGpsSpeed, displacement, duration, hasAccelData, hasGpsData) {
   const timeStr = new Date().toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
   
