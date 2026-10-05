@@ -2,8 +2,8 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>加速度積分 與 GPS測速器 2.5</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>加速度積分 與 GPS測速器 2.7</title>
   <style>
   /* --- 基礎設定 --- */
   * { box-sizing: border-box; }
@@ -184,9 +184,12 @@
   .graph-container {
     margin: 15px 0;
     width: 100%;
-    height: 240px;
+    height: 250px;
     position: relative;
     box-sizing: border-box;
+    touch-action: none;
+    overflow: hidden;
+    border-radius: 12px;
   }
 
   #vtGraph {
@@ -197,7 +200,7 @@
     display: block;
     width: 100%;
     height: 100%;
-    overflow: visible;
+    overflow: hidden;
   }
 
   .graph-placeholder {
@@ -224,6 +227,7 @@
     border-radius: 20px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
     transition: opacity 0.3s ease;
+    z-index: 5;
   }
 
   .graph-container.has-data .graph-placeholder {
@@ -267,6 +271,23 @@
     fill: #ff9800;
     font-weight: bold;
     font-size: 11px;
+  }
+
+  .btn-reset-zoom {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(30, 30, 30, 0.85);
+    color: #ff9800;
+    border: 1px solid #ff9800;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-weight: bold;
+    cursor: pointer;
+    z-index: 10;
+    display: none;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.5);
   }
 
   /* --- 觀測紀錄區塊 --- */
@@ -515,16 +536,23 @@
 
   <!-- 速度積分 v-t 圖區塊 -->
   <div class="graph-container" id="vtContainer">
+    <button id="btnResetZoom" class="btn-reset-zoom">重置縮放</button>
     <div class="graph-placeholder" id="vtPlaceholder">
       開始錄製積分後將繪製 v-t 曲線圖
     </div>
     <svg id="vtGraph" viewBox="0 0 500 280" preserveAspectRatio="none">
-      <g id="vtGrid" class="graph-grid"></g>
-      <path id="vtArea" class="vt-area-path" d="" />
-      <path id="vtLine" class="vt-line-path" d="" />
-      <g id="vtLabels" class="graph-labels"></g>
+      <!-- 包含動態曲線、網格與 X 軸時間刻度（隨雙指縮放/平移） -->
+      <g id="vtZoomGroup">
+        <g id="vtGrid" class="graph-grid"></g>
+        <g id="vtZoomLabels" class="graph-labels"></g>
+        <path id="vtArea" class="vt-area-path" d="" />
+        <path id="vtLine" class="vt-line-path" d="" />
+      </g>
       
-      <!-- 點選/滑動互動指示器 -->
+      <!-- 固定在最上層不動的 Y 軸標籤與軸線標題 -->
+      <g id="vtFixedLabels" class="graph-labels"></g>
+
+      <!-- 互動懸浮指示器 -->
       <g id="vtInteractive" style="display: none; pointer-events: none;">
         <line id="vtGuideLine" x1="0" y1="25" x2="0" y2="240" />
         <circle id="vtFocusPoint" r="5" />
@@ -574,7 +602,7 @@
   </div>
  
   <div style="text-align: center; font-size: 0.75rem; color: #555; margin-top: 15px;">
-    Version 2.5
+    Version 2.7
   </div>
 </div>
 
@@ -727,7 +755,10 @@ const vtContainer = document.getElementById('vtContainer');
 const vtGrid = document.getElementById('vtGrid');
 const vtLine = document.getElementById('vtLine');
 const vtArea = document.getElementById('vtArea');
-const vtLabels = document.getElementById('vtLabels');
+const vtZoomLabels = document.getElementById('vtZoomLabels');
+const vtFixedLabels = document.getElementById('vtFixedLabels');
+const vtZoomGroup = document.getElementById('vtZoomGroup');
+const btnResetZoom = document.getElementById('btnResetZoom');
 
 const vtGraph = document.getElementById('vtGraph');
 const vtInteractive = document.getElementById('vtInteractive');
@@ -742,6 +773,15 @@ const btnClearHistory = document.getElementById('btn-clear-history');
 const btnPrevPage = document.getElementById('btn-prev-page');
 const btnNextPage = document.getElementById('btn-next-page');
 const pageInfoEl = document.getElementById('page-info');
+
+// 縮放與平移狀態變數
+let zoomScale = 1.0;
+let panTranslateX = 0.0;
+let initialPinchDistance = null;
+let initialScale = 1.0;
+let isDraggingGraph = false;
+let startDragX = 0;
+let startPanX = 0;
 
 // 權限啟動
 document.getElementById('btn-request-permission').addEventListener('click', () => {
@@ -919,17 +959,23 @@ function updateVtGraph() {
   const maxV = Math.max(maxSpeedKmh, 5); 
   const maxT = vtPointsData.length > 1 ? Math.max(vtPointsData[vtPointsData.length - 1].t, 5) : 10;
 
-  // 1. 自動繪製 Y 軸 5 等分刻度線與標籤
+  // 1. 自動繪製 Y 軸與 X 軸網格線
   const numYTicks = 5;
   const vStep = maxV / numYTicks;
   const yStepPx = graphHeight / numYTicks;
 
+  const numXTicks = 5;
+  const tStep = maxT / numXTicks;
+  const xStepPx = graphWidth / numXTicks;
+
   let gridLines = '';
-  let labelsHtml = `
-    <text x="${500 - paddingRight}" y="${paddingBottom + 20}" text-anchor="end" class="axis-title">時間 (s)</text>
+  let zoomLabelsHtml = '';
+  let fixedLabelsHtml = `
+    <text x="${500 - paddingRight}" y="${paddingBottom + 32}" text-anchor="end" class="axis-title">時間 (s)</text>
     <text x="${paddingLeft - 10}" y="15" text-anchor="start" class="axis-title">速度 (km/h)</text>
   `;
 
+  // 繪製 Y 軸 (速度) 刻度與網格
   for (let i = 0; i <= numYTicks; i++) {
     const yPx = paddingBottom - (i * yStepPx);
     const vValue = (i * vStep).toFixed(1);
@@ -940,14 +986,28 @@ function updateVtGraph() {
       gridLines += `<line x1="${paddingLeft}" y1="${yPx}" x2="${500 - paddingRight}" y2="${yPx}" />`;
     }
 
-    labelsHtml += `<text x="${paddingLeft - 8}" y="${yPx + 4}" text-anchor="end">${vValue}</text>`;
+    fixedLabelsHtml += `<text x="${paddingLeft - 8}" y="${yPx + 4}" text-anchor="end">${vValue}</text>`;
   }
 
+  // 繪製 X 軸 (時間秒數) 刻度與網格（打包進會被放大的群組內）
   gridLines += `<line x1="${paddingLeft}" y1="${paddingTop}" x2="${paddingLeft}" y2="${paddingBottom}" class="axis-line" />`;
+
+  for (let i = 0; i <= numXTicks; i++) {
+    const xPx = paddingLeft + (i * xStepPx);
+    const tValue = (i * tStep).toFixed(1);
+
+    if (i > 0) {
+      gridLines += `<line x1="${xPx}" y1="${paddingTop}" x2="${xPx}" y2="${paddingBottom}" />`;
+    }
+    // X 軸秒數文字放置在 vtZoomLabels，跟著曲線一同放大切換
+    zoomLabelsHtml += `<text x="${xPx}" y="${paddingBottom + 16}" text-anchor="middle">${tValue}s</text>`;
+  }
+
   vtGrid.innerHTML = gridLines;
+  vtZoomLabels.innerHTML = zoomLabelsHtml;
+  vtFixedLabels.innerHTML = fixedLabelsHtml;
 
   if (vtPointsData.length < 2) {
-    vtLabels.innerHTML = labelsHtml + `<text x="${500 - paddingRight}" y="${paddingBottom + 18}" text-anchor="end">0.0</text>`;
     vtInteractive.style.display = "none";
     return;
   }
@@ -973,18 +1033,96 @@ function updateVtGraph() {
   vtLine.setAttribute('d', lineD);
   vtArea.setAttribute('d', areaD);
 
-  labelsHtml += `<text x="${500 - paddingRight}" y="${paddingBottom + 18}" text-anchor="end">${maxT.toFixed(1)}</text>`;
-  vtLabels.innerHTML = labelsHtml;
+  applyZoomTransform();
 }
 
-// 核心互動：監聽滑鼠與觸控拖曳點選
+// 套用縮放與平移 Transform
+function applyZoomTransform() {
+  vtZoomGroup.setAttribute('transform', `translate(${panTranslateX}, 0) scale(${zoomScale}, 1)`);
+  if (zoomScale > 1.05 || Math.abs(panTranslateX) > 1) {
+    btnResetZoom.style.display = "block";
+  } else {
+    btnResetZoom.style.display = "none";
+  }
+}
+
+// 核心互動：雙指放大與拖曳平移
 function initVtGraphInteractivity() {
+  const getPinchDistance = (e) => {
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  btnResetZoom.addEventListener('click', () => {
+    zoomScale = 1.0;
+    panTranslateX = 0.0;
+    applyZoomTransform();
+    vtInteractive.style.display = "none";
+  });
+
+  // 雙指觸控手勢
+  vtContainer.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 2) {
+      initialPinchDistance = getPinchDistance(e);
+      initialScale = zoomScale;
+      vtInteractive.style.display = "none";
+    } else if (e.touches.length === 1) {
+      if (zoomScale > 1.05) {
+        isDraggingGraph = true;
+        startDragX = e.touches[0].clientX;
+        startPanX = panTranslateX;
+      }
+      handlePointer(e);
+    }
+  }, { passive: true });
+
+  vtContainer.addEventListener('touchmove', (e) => {
+    if (e.touches.length === 2 && initialPinchDistance) {
+      const currentDistance = getPinchDistance(e);
+      const scaleFactor = currentDistance / initialPinchDistance;
+      zoomScale = Math.min(Math.max(initialScale * scaleFactor, 1.0), 5.0); // 最大放大 5 倍
+      
+      // 邊界卡位
+      const maxPan = 0;
+      const minPan = -(500 * (zoomScale - 1));
+      if (panTranslateX < minPan) panTranslateX = minPan;
+      if (panTranslateX > maxPan) panTranslateX = maxPan;
+
+      applyZoomTransform();
+    } else if (e.touches.length === 1) {
+      if (isDraggingGraph) {
+        const deltaX = e.touches[0].clientX - startDragX;
+        panTranslateX = startPanX + deltaX;
+        
+        const minPan = -(500 * (zoomScale - 1));
+        if (panTranslateX > 0) panTranslateX = 0;
+        if (panTranslateX < minPan) panTranslateX = minPan;
+
+        applyZoomTransform();
+      }
+      handlePointer(e);
+    }
+  }, { passive: true });
+
+  vtContainer.addEventListener('touchend', (e) => {
+    if (e.touches.length < 2) initialPinchDistance = null;
+    if (e.touches.length === 0) {
+      isDraggingGraph = false;
+      vtInteractive.style.display = "none";
+    }
+  });
+
+  // 滑鼠懸浮與動態 Cursor 提示
   const handlePointer = (e) => {
     if (vtPointsData.length < 2) return;
 
     const rect = vtGraph.getBoundingClientRect();
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const mouseX = ((clientX - rect.left) / rect.width) * 500;
+    let mouseX = ((clientX - rect.left) / rect.width) * 500;
+
+    // 將滑鼠座標換算回縮放/平移後的真正數據座標
+    mouseX = (mouseX - panTranslateX) / zoomScale;
 
     const paddingLeft = 45;
     const paddingRight = 20;
@@ -1017,12 +1155,15 @@ function initVtGraphInteractivity() {
 
     vtInteractive.style.display = "block";
 
-    vtGuideLine.setAttribute('x1', closestPoint.x);
-    vtGuideLine.setAttribute('x2', closestPoint.x);
-    vtFocusPoint.setAttribute('cx', closestPoint.x);
+    // 計算經變形後的實際 SVG 螢幕顯示座標
+    const screenX = closestPoint.x * zoomScale + panTranslateX;
+
+    vtGuideLine.setAttribute('x1', screenX);
+    vtGuideLine.setAttribute('x2', screenX);
+    vtFocusPoint.setAttribute('cx', screenX);
     vtFocusPoint.setAttribute('cy', closestPoint.y);
 
-    let tooltipX = closestPoint.x - 65;
+    let tooltipX = screenX - 65;
     if (tooltipX < paddingLeft) tooltipX = paddingLeft;
     if (tooltipX + 130 > 500 - paddingRight) tooltipX = 500 - paddingRight - 130;
 
@@ -1037,7 +1178,7 @@ function initVtGraphInteractivity() {
 
     vtTooltipTime.setAttribute('x', tooltipX + 10);
     vtTooltipTime.setAttribute('y', tooltipY + 16);
-    vtTooltipTime.textContent = `${mins}:${secs}`;
+    vtTooltipTime.textContent = `${mins}:${secs} (${closestPoint.t.toFixed(1)}s)`;
 
     vtTooltipSpeed.setAttribute('x', tooltipX + 10);
     vtTooltipSpeed.setAttribute('y', tooltipY + 34);
@@ -1046,10 +1187,6 @@ function initVtGraphInteractivity() {
 
   vtGraph.addEventListener('mousemove', handlePointer);
   vtGraph.addEventListener('mouseleave', () => { vtInteractive.style.display = "none"; });
-
-  vtGraph.addEventListener('touchstart', (e) => { handlePointer(e); }, { passive: true });
-  vtGraph.addEventListener('touchmove', (e) => { handlePointer(e); }, { passive: true });
-  vtGraph.addEventListener('touchend', () => { vtInteractive.style.display = "none"; });
 }
 
 // 計時器
@@ -1093,6 +1230,10 @@ btnZero.addEventListener('click', () => {
   maxAccelVal = 0.0;
   maxDecelVal = 0.0;
   vtPointsData = [];
+  zoomScale = 1.0;
+  panTranslateX = 0.0;
+  applyZoomTransform();
+  
   vtContainer.classList.remove('has-data');
   vtLine.setAttribute('d', '');
   vtArea.setAttribute('d', '');
@@ -1198,6 +1339,10 @@ btnReset.addEventListener('click', async () => {
   recordingStartTime = null;
 
   vtPointsData = [];
+  zoomScale = 1.0;
+  panTranslateX = 0.0;
+  applyZoomTransform();
+
   vtContainer.classList.remove('has-data');
   vtLine.setAttribute('d', '');
   vtArea.setAttribute('d', '');
