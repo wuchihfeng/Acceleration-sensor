@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>加速度積分 與 GPS測速器 2.3</title>
+  <title>加速度積分 與 GPS測速器 2.4</title>
   <style>
   /* --- 基礎設定 --- */
   * { box-sizing: border-box; }
@@ -130,11 +130,31 @@
     border: 1px solid #222; 
   }
   
-  .distance-box {
+  .distance-compare-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px dashed #333;
+  }
+
+  .distance-item {
+    background: #181818;
+    padding: 8px;
+    border-radius: 8px;
+    border: 1px solid #2a2a2a;
+  }
+
+  .distance-title {
+    font-size: 0.7rem;
+    color: #888;
+    margin-bottom: 3px;
+  }
+
+  .distance-val {
     font-size: 0.95rem;
-    color: #3498db;
     font-weight: 700;
-    margin-bottom: 6px;
   }
 
   .info { font-size: 0.8rem; color: #aaa; margin-top: 4px; }
@@ -242,19 +262,19 @@
     width: 100%;
     border-collapse: collapse;
     text-align: left;
-    font-size: 12px;
+    font-size: 11px;
     white-space: nowrap; 
   }
 
   .record-table th {
-    padding: 8px 6px;
+    padding: 8px 4px;
     border-bottom: 2px solid #333;
     color: #888;
     font-weight: 500;
   }
 
   .record-table td {
-    padding: 8px 6px;
+    padding: 8px 4px;
     vertical-align: middle;
   }
 
@@ -264,9 +284,9 @@
   }
 
   .record-badge {
-    padding: 2px 5px;
+    padding: 2px 4px;
     border-radius: 4px;
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 500;
     display: inline-block;
   }
@@ -350,8 +370,16 @@
 
   <!-- 速度、位移與雙軸加速度顯示面板 -->
   <div class="result-box">
-    <div class="distance-box">
-      積分後累積位移：<span id="dist-val">0.0</span> <span id="dist-unit">m</span>
+    <!-- 位移對照雙欄 -->
+    <div class="distance-compare-grid">
+      <div class="distance-item">
+        <div class="distance-title">積分位移</div>
+        <div class="distance-val gmeter-color"><span id="dist-val">0.0</span> <span id="dist-unit" style="font-size:0.7rem">m</span></div>
+      </div>
+      <div class="distance-item">
+        <div class="distance-title">GPS 位移</div>
+        <div class="distance-val gps-color"><span id="gps-dist-val">0.0</span> <span id="gps-dist-unit" style="font-size:0.7rem">m</span></div>
+      </div>
     </div>
 
     <div class="info">
@@ -419,14 +447,15 @@
             <th>時間</th>
             <th>積分極速</th>
             <th>GPS極速</th>
-            <th>位移</th>
+            <th>積分位移</th>
+            <th>GPS位移</th>
             <th>時長</th>
             <th>操作</th>
           </tr>
         </thead>
         <tbody id="records-tbody">
           <tr>
-            <td colspan="6" class="placeholder-text">尚無觀測紀錄，按下停止錄製即自動存檔</td>
+            <td colspan="7" class="placeholder-text">尚無觀測紀錄，按下停止錄製即自動存檔</td>
           </tr>
         </tbody>
       </table>
@@ -446,7 +475,6 @@
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
               (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-// 如果是 iOS，軸向符號通常與 Android 相反，設定反轉係數為 -1，否則為 1
 const axisMultiplier = isIOS ? -1.0 : 1.0;
 
 // --- 螢幕恆亮 Wake Lock 管理 ---
@@ -545,9 +573,13 @@ let stillFrameCount = 0;
 let maxAccelVal = 0.0;
 let maxDecelVal = 0.0;
 
+// GPS 相關變數
 let gpsWatchId = null;
 let currentGpsSpeedKmh = 0.0;
 let maxGpsSpeedKmh = 0.0;    
+let totalGpsDisplacement = 0.0;
+let lastLat = null;
+let lastLon = null;
 
 let lastAccelTimestamp = null;
 let recordingStartTime = null;
@@ -565,6 +597,9 @@ const speedValEl = document.getElementById('speed-val');
 const gpsSpeedValEl = document.getElementById('gps-speed-val');
 const distValEl = document.getElementById('dist-val');
 const distUnitEl = document.getElementById('dist-unit');
+const gpsDistValEl = document.getElementById('gps-dist-val');
+const gpsDistUnitEl = document.getElementById('gps-dist-unit');
+
 const accelValEl = document.getElementById('accel-val');
 const gValEl = document.getElementById('g-val');
 const accelXValEl = document.getElementById('accel-x-val');
@@ -626,18 +661,15 @@ function initSensorListener() {
   window.addEventListener('devicemotion', (event) => {
     if (!event.accelerationIncludingGravity) return;
     
-    // 套用平台方向係數 (iOS 自動反轉)
     currentRawX = (event.accelerationIncludingGravity.x || 0.0) * axisMultiplier;
     currentRawY = (event.accelerationIncludingGravity.y || 0.0) * axisMultiplier;
 
-    // 低通濾波
     filteredX = filteredX + lpfAlpha * (currentRawX - filteredX);
     filteredY = filteredY + lpfAlpha * (currentRawY - filteredY);
 
     let cleanAccelX = filteredX - xOffset;
     let cleanAccelY = filteredY - yOffset;
 
-    // 死區濾波 (Deadband)
     if (Math.abs(cleanAccelY) < 0.03) {
       cleanAccelY = 0.0;
     }
@@ -702,7 +734,20 @@ function initSensorListener() {
   });
 }
 
-// GPS 監聽
+// Haversine 公式計算兩組經緯度距離（公尺）
+function calculateHaversineDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371e3; // 地球半徑 (公尺)
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+// GPS 監聽與位移計算
 function initGpsListener() {
   if (!("geolocation" in navigator)) {
     alert("您的裝置或瀏覽器不支援 GPS 定位！");
@@ -716,7 +761,10 @@ function initGpsListener() {
     (position) => {
       const speedMps = position.coords.speed;
       const accuracy = position.coords.accuracy;
+      const lat = position.coords.latitude;
+      const lon = position.coords.longitude;
 
+      // 處理 GPS 速度
       if (speedMps !== null && speedMps >= 0) {
         currentGpsSpeedKmh = speedMps * 3.6;
         gpsSpeedValEl.textContent = currentGpsSpeedKmh.toFixed(1);
@@ -727,6 +775,29 @@ function initGpsListener() {
         }
       } else {
         gpsSpeedValEl.textContent = "0.0";
+      }
+
+      // 計算 GPS 累積位移 (當準確度小於 35 公尺且正在錄製 GPS 時進行累加)
+      if (lastLat !== null && lastLon !== null && accuracy < 35) {
+        let distDelta = calculateHaversineDistance(lastLat, lastLon, lat, lon);
+        // 過濾掉微小抖動（小於 0.8 公尺的雜訊忽略）
+        if (distDelta > 0.8 && distDelta < 100) {
+          if (isGpsRecording) {
+            totalGpsDisplacement += distDelta;
+          }
+        }
+      }
+      
+      lastLat = lat;
+      lastLon = lon;
+
+      // 更新畫面上 GPS 位移顯示
+      if (totalGpsDisplacement >= 1000) {
+        gpsDistValEl.textContent = (totalGpsDisplacement / 1000).toFixed(2);
+        gpsDistUnitEl.textContent = "km";
+      } else {
+        gpsDistValEl.textContent = totalGpsDisplacement.toFixed(1);
+        gpsDistUnitEl.textContent = "m";
       }
 
       gpsStatusEl.className = "status-tag status-gps";
@@ -787,6 +858,7 @@ btnZero.addEventListener('click', () => {
   speedKF.reset(); 
   currentSpeed = 0.0;
   totalDisplacement = 0.0;
+  totalGpsDisplacement = 0.0;
   stillFrameCount = 0;
   maxAccelVal = 0.0;
   maxDecelVal = 0.0;
@@ -796,6 +868,8 @@ btnZero.addEventListener('click', () => {
   speedValEl.textContent = "0.0";
   distValEl.textContent = "0.0";
   distUnitEl.textContent = "m";
+  gpsDistValEl.textContent = "0.0";
+  gpsDistUnitEl.textContent = "m";
 
   biasDisplayYEl.value = yOffset.toFixed(4) + " m/s²";
 
@@ -856,6 +930,7 @@ function saveCurrentRecord(hasAccel, hasGps) {
       maxSpeedKmh, 
       maxGpsSpeedKmh, 
       totalDisplacement, 
+      totalGpsDisplacement,
       totalRecordedTime, 
       hasAccel || maxSpeedKmh > 0, 
       hasGps || maxGpsSpeedKmh > 0
@@ -889,6 +964,7 @@ btnReset.addEventListener('click', async () => {
   maxAccelVal = 0.0;
   maxDecelVal = 0.0;
   totalDisplacement = 0.0;
+  totalGpsDisplacement = 0.0;
   totalRecordedTime = 0.0;
   stillFrameCount = 0;
   lastAccelTimestamp = null;
@@ -902,6 +978,8 @@ btnReset.addEventListener('click', async () => {
   maxDecelValEl.textContent = "0.000";
   distValEl.textContent = "0.0";
   distUnitEl.textContent = "m";
+  gpsDistValEl.textContent = "0.0";
+  gpsDistUnitEl.textContent = "m";
   timerValEl.textContent = "0.0";
 });
 
@@ -910,11 +988,15 @@ lpfSlider.addEventListener('input', (e) => {
   lpfValEl.textContent = lpfAlpha.toFixed(2);
 });
 
-function addRecord(maxSpeed, maxGpsSpeed, displacement, duration, hasAccelData, hasGpsData) {
+function addRecord(maxSpeed, maxGpsSpeed, displacement, gpsDisplacement, duration, hasAccelData, hasGpsData) {
   const timeStr = new Date().toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
   
   let dispStr = hasAccelData 
     ? (displacement >= 1000 ? (displacement / 1000).toFixed(2) + " km" : displacement.toFixed(1) + " m")
+    : "---";
+
+  let gpsDispStr = hasGpsData 
+    ? (gpsDisplacement >= 1000 ? (gpsDisplacement / 1000).toFixed(2) + " km" : gpsDisplacement.toFixed(1) + " m")
     : "---";
 
   records.unshift({
@@ -923,6 +1005,7 @@ function addRecord(maxSpeed, maxGpsSpeed, displacement, duration, hasAccelData, 
     maxSpeed: hasAccelData ? maxSpeed.toFixed(1) + " km/h" : "N/A",
     maxGpsSpeed: hasGpsData ? maxGpsSpeed.toFixed(1) + " km/h" : "N/A",
     disp: dispStr,
+    gpsDisp: gpsDispStr,
     duration: duration.toFixed(1) + " s"
   });
   
@@ -931,7 +1014,7 @@ function addRecord(maxSpeed, maxGpsSpeed, displacement, duration, hasAccelData, 
 
 function renderRecords() {
   if (records.length === 0) {
-    recordsTbody.innerHTML = `<tr><td colspan="6" class="placeholder-text">尚無觀測紀錄，按下停止錄製即自動存檔</td></tr>`;
+    recordsTbody.innerHTML = `<tr><td colspan="7" class="placeholder-text">尚無觀測紀錄，按下停止錄製即自動存檔</td></tr>`;
     btnPrevPage.disabled = true;
     btnNextPage.disabled = true;
     pageInfoEl.textContent = `第 1 / 1 頁`;
@@ -949,7 +1032,8 @@ function renderRecords() {
       <td>${r.time}</td>
       <td class="record-data-cell"><span class="record-badge ${r.maxSpeed !== 'N/A' ? 'badge-gmeter' : 'badge-none'}">${r.maxSpeed}</span></td>
       <td class="record-data-cell"><span class="record-badge ${r.maxGpsSpeed !== 'N/A' ? 'badge-gps' : 'badge-none'}">${r.maxGpsSpeed}</span></td>
-      <td style="color: ${r.disp !== '---' ? '#3498db' : '#666'}; font-weight: 600;">${r.disp}</td>
+      <td style="color: ${r.disp !== '---' ? '#ff9800' : '#666'}; font-weight: 600;">${r.disp}</td>
+      <td style="color: ${r.gpsDisp !== '---' ? '#00bcd4' : '#666'}; font-weight: 600;">${r.gpsDisp}</td>
       <td>${r.duration}</td>
       <td><button class="btn-delete" onclick="deleteRecord(${r.id})">刪除</button></td>
     </tr>
@@ -991,4 +1075,4 @@ btnNextPage.addEventListener('click', () => {
 </script>
 
 </body>
-</html>
+</html>a
