@@ -39,7 +39,7 @@
     transition: filter 0.05s, transform 0.05s !important;
   }
 
-  input { 
+  input[type="text"] { 
     width: 100%; 
     padding: 10px; 
     background: #252525; 
@@ -50,7 +50,7 @@
     font-size: 0.85rem;
   }
 
-  input:focus { border-color: #ff9800; }
+  input[type="text"]:focus { border-color: #ff9800; }
 
   .ctrl-btn { 
     flex: 1; 
@@ -166,6 +166,24 @@
     align-items: center;
     gap: 5px;
     margin-bottom: 8px;
+  }
+
+  .checkbox-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    font-size: 0.82rem;
+    color: #00bcd4;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .checkbox-container input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #00bcd4;
+    cursor: pointer;
   }
 
   .btn-fill {
@@ -392,6 +410,13 @@
   <!-- 參數與偏置設定面板 -->
   <div class="helper-box">
     <span class="helper-label">平滑低通濾波與動態校準</span>
+    
+    <!-- GPS 自動校準可選擇按鈕（預設關閉） -->
+    <label class="checkbox-container">
+      <input type="checkbox" id="chk-enable-gps-calib">
+      <span>啟用 GPS 自動校準 (Bias Offset)</span>
+    </label>
+
     <label for="lpf-slider" style="font-size: 0.78rem; color: #aaa;">低通濾波強度 (Smoothing Alpha: <span id="lpf-val">0.20</span>)</label>
     <div class="helper-inputs">
       <input type="range" id="lpf-slider" min="0.01" max="0.30" step="0.01" value="0.20">
@@ -573,6 +598,7 @@ const maxDecelValEl = document.getElementById('max-decel-val');
 const calibStatusEl = document.getElementById('calib-status');
 const gpsStatusEl = document.getElementById('gps-status');
 const biasDisplayYEl = document.getElementById('bias-display-y');
+const chkEnableGpsCalib = document.getElementById('chk-enable-gps-calib');
 
 const btnZero = document.getElementById('btn-zero');
 const btnToggleAccel = document.getElementById('btn-toggle-accel');
@@ -633,7 +659,7 @@ document.getElementById('btn-request-gps').addEventListener('click', () => {
   initGpsListener();
 });
 
-// ====== 感測器監聽 ======
+// ====== 感測器監聽：含 GPS 即時 Bias 校準引擎 (可選關閉/開啟) ======
 function initSensorListener() {
   window.addEventListener('devicemotion', (event) => {
     if (!event.accelerationIncludingGravity) return;
@@ -678,11 +704,11 @@ function initSensorListener() {
           // 1. IMU 前向速度推算
           currentSpeed += cleanAccelY * dt;
 
-          /* 
-          // 2. 利用 GPS 進行動態偏置 (Bias) 自動校準 (預設關閉，需要時可取消註解)
+          // 2. 利用 GPS 進行動態偏置 (Bias) 自動校準 (需勾選開啟)
+          const useGpsCalibration = chkEnableGpsCalib && chkEnableGpsCalib.checked;
           let isGpsFresh = (now - lastGpsUpdateTime) < 2000;
 
-          if (isGpsFresh && currentGpsAccuracy < 25 && currentGpsSpeedMps >= 0) {
+          if (useGpsCalibration && isGpsFresh && currentGpsAccuracy < 25 && currentGpsSpeedMps >= 0) {
             let speedError = currentSpeed - currentGpsSpeedMps;
 
             // 微調速度 (向 GPS 靠攏，學習率 0.15)
@@ -696,15 +722,14 @@ function initSensorListener() {
             }
           }
 
-          // 車站靜止強行歸零鎖定
-          if (isGpsFresh && currentGpsSpeedMps < 0.15 && Math.abs(cleanAccelY) < 0.03) {
+          // 3. 邊界約束防護
+          if (currentSpeed < 0) currentSpeed = 0.0; // 推進方向非負
+
+          // 車站靜止強行歸零鎖定 (僅當開啟 GPS 校準時啟用)
+          if (useGpsCalibration && isGpsFresh && currentGpsSpeedMps < 0.15 && Math.abs(cleanAccelY) < 0.03) {
             currentSpeed = 0.0;
             yOffset = filteredY; // 更新最新靜止 Bias
           }
-          */
-
-          // 3. 邊界約束防護
-          if (currentSpeed < 0) currentSpeed = 0.0; // 推進方向非負
 
           totalDisplacement += currentSpeed * dt;
 
