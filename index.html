@@ -52,6 +52,11 @@
 
   input[type="text"]:focus { border-color: #ff9800; }
 
+  input[type="range"] {
+    width: 100%;
+    accent-color: #ff9800;
+  }
+
   .ctrl-btn { 
     flex: 1; 
     border: none; 
@@ -157,7 +162,7 @@
     color: #ff9800;
     font-weight: bold;
     display: block;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
     font-size: 0.85rem;
   }
 
@@ -168,22 +173,66 @@
     margin-bottom: 8px;
   }
 
-  .checkbox-container {
+  /* --- 原生 Checkbox 轉膠囊型 Toggle Switch 按鈕樣式 --- */
+  .switch-container {
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin-bottom: 10px;
-    font-size: 0.82rem;
-    color: #00bcd4;
+    justify-content: space-between;
+    margin-bottom: 12px;
     cursor: pointer;
     user-select: none;
+    gap: 12px;
   }
 
-  .checkbox-container input[type="checkbox"] {
-    width: 16px;
-    height: 16px;
-    accent-color: #00bcd4;
+  .switch-label-text {
+    font-size: 0.82rem;
+    color: #e0e0e0;
+    font-weight: 500;
+    line-height: 1.3;
+  }
+
+  .toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 26px;
+    flex-shrink: 0;
+  }
+
+  .toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+
+  .slider {
+    position: absolute;
     cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: #444444;
+    transition: .3s;
+    border-radius: 26px;
+  }
+
+  .slider:before {
+    position: absolute;
+    content: "";
+    height: 20px;
+    width: 20px;
+    left: 3px;
+    bottom: 3px;
+    background-color: #e0e0e0;
+    transition: .3s;
+    border-radius: 50%;
+  }
+
+  input:checked + .slider {
+    background-color: #00bcd4;
+  }
+
+  input:checked + .slider:before {
+    transform: translateX(24px);
+    background-color: #ffffff;
   }
 
   .btn-fill {
@@ -242,7 +291,6 @@
     opacity: 0.95;
     padding: 8px 16px;
     border: 1px solid #333333;
-    border-radius: 20px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
     transition: opacity 0.3s ease;
     z-index: 5;
@@ -411,18 +459,21 @@
   <div class="helper-box">
     <span class="helper-label">平滑低通濾波與動態校準</span>
     
-    <!-- GPS 自動校準可選擇按鈕（預設關閉） -->
-    <label class="checkbox-container">
-      <input type="checkbox" id="chk-enable-gps-calib">
-      <span>啟用 GPS 自動校準 (Bias Offset)</span>
+    <!-- 改為膠囊 Switch 的 GPS 自動校準按鈕 -->
+    <label class="switch-container">
+      <span class="switch-label-text">啟用 GPS 自動校準 (Bias Offset)</span>
+      <div class="toggle-switch">
+        <input type="checkbox" id="chk-enable-gps-calib">
+        <span class="slider"></span>
+      </div>
     </label>
 
-    <label for="lpf-slider" style="font-size: 0.78rem; color: #aaa;">低通濾波強度 (Smoothing Alpha: <span id="lpf-val">0.20</span>)</label>
+    <label for="lpf-slider" style="font-size: 0.78rem; color: #aaa; display: block; margin-top: 10px;">低通濾波強度 (Smoothing Alpha: <span id="lpf-val">0.20</span>)</label>
     <div class="helper-inputs">
       <input type="range" id="lpf-slider" min="0.01" max="0.30" step="0.01" value="0.20">
     </div>
 
-    <label style="font-size: 0.78rem; color: #aaa;">Y 軸動態學習零點偏置 (Bias Offset):</label>
+    <label style="font-size: 0.78rem; color: #aaa; display: block; margin-top: 10px;">Y 軸動態學習零點偏置 (Bias Offset):</label>
     <div class="helper-inputs">
       <input type="text" id="bias-display-y" value="0.0000 m/s²" readonly>
     </div>
