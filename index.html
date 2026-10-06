@@ -52,11 +52,6 @@
 
   input[type="text"]:focus { border-color: #ff9800; }
 
-  input[type="range"] {
-    width: 100%;
-    accent-color: #ff9800;
-  }
-
   .ctrl-btn { 
     flex: 1; 
     border: none; 
@@ -152,7 +147,7 @@
 
   .helper-box {
     background: #2a2a2a;
-    padding: 12px;
+    padding: 14px;
     border-radius: 12px;
     margin-bottom: 15px;
     border: 1px dashed #555;
@@ -162,77 +157,114 @@
     color: #ff9800;
     font-weight: bold;
     display: block;
-    margin-bottom: 10px;
+    margin-bottom: 12px;
     font-size: 0.85rem;
   }
 
-  .helper-inputs {
+  /* --- 原生安卓 / iOS 風格開關按鈕 (Switch) --- */
+  .switch-row {
     display: flex;
-    align-items: center;
-    gap: 5px;
-    margin-bottom: 8px;
-  }
-
-  /* --- 原生 Checkbox 轉膠囊型 Toggle Switch 按鈕樣式 --- */
-  .switch-container {
-    display: flex;
-    align-items: center;
     justify-content: space-between;
-    margin-bottom: 12px;
-    cursor: pointer;
-    user-select: none;
-    gap: 12px;
+    align-items: center;
+    margin-bottom: 14px;
   }
 
-  .switch-label-text {
+  .switch-label {
     font-size: 0.82rem;
     color: #e0e0e0;
     font-weight: 500;
-    line-height: 1.3;
   }
 
-  .toggle-switch {
+  .switch {
     position: relative;
     display: inline-block;
-    width: 50px;
-    height: 26px;
+    width: 46px;
+    height: 24px;
     flex-shrink: 0;
   }
 
-  .toggle-switch input {
+  .switch input {
     opacity: 0;
     width: 0;
     height: 0;
   }
 
-  .slider {
+  .slider-toggle {
     position: absolute;
     cursor: pointer;
     top: 0; left: 0; right: 0; bottom: 0;
-    background-color: #444444;
-    transition: .3s;
-    border-radius: 26px;
+    background-color: #4a4a4a;
+    transition: .3s ease;
+    border-radius: 24px;
   }
 
-  .slider:before {
+  .slider-toggle:before {
     position: absolute;
     content: "";
-    height: 20px;
-    width: 20px;
+    height: 18px;
+    width: 18px;
     left: 3px;
     bottom: 3px;
-    background-color: #e0e0e0;
-    transition: .3s;
-    border-radius: 50%;
-  }
-
-  input:checked + .slider {
-    background-color: #00bcd4;
-  }
-
-  input:checked + .slider:before {
-    transform: translateX(24px);
     background-color: #ffffff;
+    transition: .3s ease;
+    border-radius: 50%;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  }
+
+  input:checked + .slider-toggle {
+    background-color: #007aff;
+  }
+
+  input:checked + .slider-toggle:before {
+    transform: translateX(22px);
+  }
+
+  /* --- 藍色填充進度條滑桿 (Custom Range Slider) --- */
+  .helper-inputs {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-bottom: 10px;
+    margin-top: 6px;
+  }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 8px;
+    border-radius: 4px;
+    background: linear-gradient(to right, #007aff 0%, #007aff 65%, #e0e0e0 65%, #e0e0e0 100%);
+    outline: none;
+    cursor: pointer;
+  }
+
+  /* Webkit 滑塊 (Chrome / Safari / Edge) */
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #007aff;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.4);
+    transition: transform 0.1s ease;
+  }
+
+  input[type="range"]::-webkit-slider-thumb:active {
+    transform: scale(1.15);
+  }
+
+  /* Firefox 滑塊 */
+  input[type="range"]::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border: none;
+    border-radius: 50%;
+    background: #007aff;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.4);
   }
 
   .btn-fill {
@@ -291,6 +323,7 @@
     opacity: 0.95;
     padding: 8px 16px;
     border: 1px solid #333333;
+    border-radius: 20px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
     transition: opacity 0.3s ease;
     z-index: 5;
@@ -459,22 +492,22 @@
   <div class="helper-box">
     <span class="helper-label">平滑低通濾波與動態校準</span>
     
-    <!-- 改為膠囊 Switch 的 GPS 自動校準按鈕 -->
-    <label class="switch-container">
-      <span class="switch-label-text">啟用 GPS 自動校準 (Bias Offset)</span>
-      <div class="toggle-switch">
+    <!-- GPS 自動校準 Toggle Switch 開關 -->
+    <div class="switch-row">
+      <span class="switch-label">啟用 GPS 自動校準 (Bias Offset)</span>
+      <label class="switch">
         <input type="checkbox" id="chk-enable-gps-calib">
-        <span class="slider"></span>
-      </div>
-    </label>
+        <span class="slider-toggle"></span>
+      </label>
+    </div>
 
-    <label for="lpf-slider" style="font-size: 0.78rem; color: #aaa; display: block; margin-top: 10px;">低通濾波強度 (Smoothing Alpha: <span id="lpf-val">0.20</span>)</label>
+    <label for="lpf-slider" style="font-size: 0.78rem; color: #aaa;">低通濾波強度 (Smoothing Alpha: <span id="lpf-val">0.20</span>)</label>
     <div class="helper-inputs">
       <input type="range" id="lpf-slider" min="0.01" max="0.30" step="0.01" value="0.20">
     </div>
 
-    <label style="font-size: 0.78rem; color: #aaa; display: block; margin-top: 10px;">Y 軸動態學習零點偏置 (Bias Offset):</label>
-    <div class="helper-inputs">
+    <label style="font-size: 0.78rem; color: #aaa;">Y 軸動態學習零點偏置 (Bias Offset):</label>
+    <div class="helper-inputs" style="margin-top: 4px; margin-bottom: 0;">
       <input type="text" id="bias-display-y" value="0.0000 m/s²" readonly>
     </div>
   </div>
@@ -690,6 +723,15 @@ let isDraggingGraph = false;
 let startDragX = 0;
 let startPanX = 0;
 
+// 動態更新 Range 滑桿進度藍色填充樣式
+function updateSliderTrack(slider) {
+  const min = parseFloat(slider.min) || 0;
+  const max = parseFloat(slider.max) || 1;
+  const val = parseFloat(slider.value);
+  const percentage = ((val - min) / (max - min)) * 100;
+  slider.style.background = `linear-gradient(to right, #007aff 0%, #007aff ${percentage}%, #e0e0e0 ${percentage}%, #e0e0e0 100%)`;
+}
+
 // 權限啟動
 document.getElementById('btn-request-permission').addEventListener('click', () => {
   if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
@@ -710,7 +752,7 @@ document.getElementById('btn-request-gps').addEventListener('click', () => {
   initGpsListener();
 });
 
-// ====== 感測器監聽：含 GPS 即時 Bias 校準引擎 (可選關閉/開啟) ======
+// ====== 感測器監聽：含 GPS 即時 Bias 校準引擎 ======
 function initSensorListener() {
   window.addEventListener('devicemotion', (event) => {
     if (!event.accelerationIncludingGravity) return;
@@ -755,7 +797,7 @@ function initSensorListener() {
           // 1. IMU 前向速度推算
           currentSpeed += cleanAccelY * dt;
 
-          // 2. 利用 GPS 進行動態偏置 (Bias) 自動校準 (需勾選開啟)
+          // 2. 利用 GPS 進行動態偏置 (Bias) 自動校準
           const useGpsCalibration = chkEnableGpsCalib && chkEnableGpsCalib.checked;
           let isGpsFresh = (now - lastGpsUpdateTime) < 2000;
 
@@ -774,12 +816,12 @@ function initSensorListener() {
           }
 
           // 3. 邊界約束防護
-          if (currentSpeed < 0) currentSpeed = 0.0; // 推進方向非負
+          if (currentSpeed < 0) currentSpeed = 0.0; 
 
-          // 車站靜止強行歸零鎖定 (僅當開啟 GPS 校準時啟用)
+          // 車站靜止強行歸零鎖定
           if (useGpsCalibration && isGpsFresh && currentGpsSpeedMps < 0.15 && Math.abs(cleanAccelY) < 0.03) {
             currentSpeed = 0.0;
-            yOffset = filteredY; // 更新最新靜止 Bias
+            yOffset = filteredY; 
           }
 
           totalDisplacement += currentSpeed * dt;
@@ -1303,9 +1345,11 @@ btnReset.addEventListener('click', async () => {
   timerValEl.textContent = "0.0";
 });
 
+// 滑桿輸入與實時進度填滿更新
 lpfSlider.addEventListener('input', (e) => {
   lpfAlpha = parseFloat(e.target.value);
   lpfValEl.textContent = lpfAlpha.toFixed(2);
+  updateSliderTrack(e.target);
 });
 
 function addRecord(maxSpeed, maxGpsSpeed, displacement, gpsDisplacement, duration, hasAccelData, hasGpsData) {
@@ -1396,9 +1440,10 @@ btnNextPage.addEventListener('click', () => {
   if (currentPage < totalPages) { currentPage++; renderRecords(); }
 });
 
-// 初始化渲染
+// 初始化渲染與滑桿填滿色初始化
 renderRecords();
 initVtGraphGrid();
+updateSliderTrack(lpfSlider);
 </script>
 
 </body>
