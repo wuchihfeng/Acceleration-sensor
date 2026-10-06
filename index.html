@@ -335,7 +335,7 @@
   <!-- 速度對照雙卡片 -->
   <div class="speed-compare-grid">
     <div class="speed-card">
-      <div class="speed-card-title">積分速度 (GPS校正)</div>
+      <div class="speed-card-title">積分速度</div>
       <div class="speed-val-lg gmeter-color"><span id="speed-val">0.0</span><span class="unit">km/h</span></div>
     </div>
     <div class="speed-card">
@@ -633,7 +633,7 @@ document.getElementById('btn-request-gps').addEventListener('click', () => {
   initGpsListener();
 });
 
-// ====== 感測器監聽：含 GPS 即時 Bias 校準引擎 ======
+// ====== 感測器監聽 ======
 function initSensorListener() {
   window.addEventListener('devicemotion', (event) => {
     if (!event.accelerationIncludingGravity) return;
@@ -678,7 +678,8 @@ function initSensorListener() {
           // 1. IMU 前向速度推算
           currentSpeed += cleanAccelY * dt;
 
-          // 2. 利用 GPS 進行動態偏置 (Bias) 自動校準
+          /* 
+          // 2. 利用 GPS 進行動態偏置 (Bias) 自動校準 (預設關閉，需要時可取消註解)
           let isGpsFresh = (now - lastGpsUpdateTime) < 2000;
 
           if (isGpsFresh && currentGpsAccuracy < 25 && currentGpsSpeedMps >= 0) {
@@ -695,14 +696,15 @@ function initSensorListener() {
             }
           }
 
-          // 3. 邊界約束防護
-          if (currentSpeed < 0) currentSpeed = 0.0; // 推進方向非負
-
           // 車站靜止強行歸零鎖定
           if (isGpsFresh && currentGpsSpeedMps < 0.15 && Math.abs(cleanAccelY) < 0.03) {
             currentSpeed = 0.0;
             yOffset = filteredY; // 更新最新靜止 Bias
           }
+          */
+
+          // 3. 邊界約束防護
+          if (currentSpeed < 0) currentSpeed = 0.0; // 推進方向非負
 
           totalDisplacement += currentSpeed * dt;
 
