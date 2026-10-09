@@ -244,7 +244,7 @@
 
   /* 積分速度線 (橘) 與 GPS 速度線 (青藍) */
   .vt-line-path { fill: none; stroke: #ff9800; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
-  .vt-gps-line-path { fill: none; stroke: #00bcd4; stroke-width: 2.0; stroke-dasharray: 4, 3; stroke-linecap: round; stroke-linejoin: round; }
+  .vt-gps-line-path { fill: none; stroke: #00bcd4; stroke-width: 2.0; stroke-linecap: round; stroke-linejoin: round; }
   .vt-area-path { fill: #ff9800; fill-opacity: 0.12; stroke: none; }
 
   .graph-labels text { fill: #a0aec0; font-size: 10px; font-family: monospace !important; user-select: none; }
@@ -428,7 +428,7 @@
     <div class="graph-container" id="p1-vtContainer">
       <button id="p1-btnResetZoom" class="btn-reset-zoom">重置縮放</button>
       <div class="graph-placeholder" id="p1-vtPlaceholder">
-        開始錄製後將繪製 v-t 雙曲線圖
+        開始錄製後將繪製 v-t 曲線圖
       </div>
       <svg id="p1-vtGraph" class="vtGraphClass" viewBox="0 0 500 280" preserveAspectRatio="none">
         <g id="p1-vtZoomGroup">
@@ -487,7 +487,7 @@
     <div class="graph-container" id="p2-vtContainer">
       <button id="p2-btnResetZoom" class="btn-reset-zoom">重置縮放</button>
       <div class="graph-placeholder" id="p2-vtPlaceholder">
-        點擊下方紀錄列的「v-t圖」重現雙曲線圖
+        點擊下方紀錄列的「v-t圖」重現曲線圖
       </div>
       <svg id="p2-vtGraph" class="vtGraphClass" viewBox="0 0 500 280" preserveAspectRatio="none">
         <g id="p2-vtZoomGroup">
@@ -595,7 +595,7 @@ const graphStates = {
   p2: { zoomScale: 1.0, panTranslateX: 0.0, initialPinchDistance: null, initialScale: 1.0, isDragging: false, startDragX: 0, startPanX: 0 }
 };
 
-// localStorage 讀取 (更新為 v41 鍵名)
+// localStorage 讀取 (v4.1)
 let records = [];
 try {
   const savedRecords = localStorage.getItem('speedometer_records_v41');
@@ -673,7 +673,7 @@ document.getElementById('btn-request-permission').addEventListener('click', () =
 
 document.getElementById('btn-request-gps').addEventListener('click', () => { initGpsListener(); });
 
-// 感測器監聽
+// 感測器監聽 (完整獨立，絕不受 GPS 干涉)
 function initSensorListener() {
   window.addEventListener('devicemotion', (event) => {
     if (!event.accelerationIncludingGravity) return;
@@ -695,6 +695,7 @@ function initSensorListener() {
 
     const now = performance.now();
 
+    // 只要有開啟錄製（積分或 GPS 任一）
     if (isAccelRecording || isGpsRecording) {
       if (cleanAccelY > maxAccelVal) { maxAccelVal = cleanAccelY; maxAccelValEl.textContent = maxAccelVal.toFixed(3); }
       if (cleanAccelY < 0) {
@@ -705,16 +706,9 @@ function initSensorListener() {
       if (lastAccelTimestamp !== null) {
         let dt = (now - lastAccelTimestamp) / 1000.0; 
         if (dt > 0 && dt < 0.5) { 
+          // 只有開「錄製積分」時，才進行純加速度數值積分，完全不受 GPS 干涉
           if (isAccelRecording) {
             currentSpeed += cleanAccelY * dt;
-
-            let isGpsFresh = (now - lastGpsUpdateTime) < 2000;
-            if (isGpsFresh && currentGpsAccuracy < 30 && currentGpsSpeedMps >= 0) {
-              if (currentGpsSpeedMps < 0.15 && Math.abs(cleanAccelY) < 0.03) {
-                currentSpeed = 0.0;
-              }
-            }
-
             if (currentSpeed < 0) currentSpeed = 0.0; 
             totalDisplacement += currentSpeed * dt;
 
@@ -735,10 +729,10 @@ function initSensorListener() {
             }
           }
 
-          // 限制採樣頻率，同時記錄積分速度 v 與 GPS 速度 gv
+          // 限制採樣頻率，同時採集積分與 GPS 速度（有錄製才寫入，沒錄製記 0）
           if (now - lastPointPushTime > 50) {
             let activeAccelKmh = isAccelRecording ? (currentSpeed * 3.6) : 0.0;
-            let activeGpsKmh = (now - lastGpsUpdateTime < 3000 && currentGpsSpeedKmh >= 0) ? currentGpsSpeedKmh : 0.0;
+            let activeGpsKmh = (isGpsRecording && (now - lastGpsUpdateTime < 3000) && currentGpsSpeedKmh >= 0) ? currentGpsSpeedKmh : 0.0;
 
             vtPointsData.push({ 
               t: totalRecordedTime, 
@@ -848,7 +842,7 @@ function applyZoomTransform(prefix) {
   zoomLabelsEl.innerHTML = zoomLabelsHtml;
 }
 
-// 通用繪製 v-t 雙曲線圖表函式 (繪製積分速度與 GPS 速度)
+// 通用繪製 v-t 圖表 (獨立繪製橘色積分曲線與青藍色 GPS 曲線)
 function drawGraphToElement(prefix, points) {
   const container = document.getElementById(`${prefix}-vtContainer`);
   const gridEl = document.getElementById(`${prefix}-vtGrid`);
@@ -913,13 +907,13 @@ function drawGraphToElement(prefix, points) {
     t: p.t, v: p.v, gv: p.gv || 0
   }));
 
-  // 1. 繪製積分速度曲線 (橘)
+  // 1. 獨立繪製積分速度曲線 (橘)
   let lineD = `M ${svgPoints[0].x.toFixed(1)} ${svgPoints[0].y.toFixed(1)}`;
   for (let i = 1; i < svgPoints.length; i++) lineD += ` L ${svgPoints[i].x.toFixed(1)} ${svgPoints[i].y.toFixed(1)}`;
 
-  // 2. 繪製 GPS 速度曲線 (青藍)
+  // 2. 獨立繪製 GPS 速度曲線 (青藍)
   let gpsLineD = `M ${svgPoints[0].x.toFixed(1)} ${svgPoints[0].gpsY.toFixed(1)}`;
-  for (let i = 1; i < svgPoints.length; i++) gpsLineD += ` L ${svgPoints[i].x.toFixed(1)} ${svgPoints[i].y.toFixed(1)}`;
+  for (let i = 1; i < svgPoints.length; i++) gpsLineD += ` L ${svgPoints[i].x.toFixed(1)} ${svgPoints[i].gpsY.toFixed(1)}`;
 
   const lastP = svgPoints[svgPoints.length - 1], firstP = svgPoints[0];
   let areaD = `${lineD} L ${lastP.x.toFixed(1)} ${paddingBottom} L ${firstP.x.toFixed(1)} ${paddingBottom} Z`;
@@ -1307,7 +1301,7 @@ window.loadRecordGraph = function(id) {
   document.getElementById('p2-vtContainer').scrollIntoView({ behavior: 'smooth' });
 };
 
-// 單筆紀錄 CSV 匯出 (同時匯出積分速度與 GPS 速度)
+// 單筆紀錄 CSV 匯出 (同時匯出獨立的積分速度與 GPS 速度)
 window.exportSingleCsv = function(id) {
   const target = records.find(r => r.id === id);
   if (!target || !target.vtPoints || target.vtPoints.length === 0) {
