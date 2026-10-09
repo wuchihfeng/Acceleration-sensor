@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>加速度積分 與 GPS 測速器 4.0.5</title>
+  <title>加速度積分 與 GPS 測速器 4.1</title>
   <style>
   /* --- 基礎樣式還原 --- */
   * { box-sizing: border-box; }
@@ -242,8 +242,10 @@
   .graph-grid line { stroke: #282828; stroke-width: 1; stroke-dasharray: 3, 3; }
   .graph-grid line.axis-line { stroke: #555555; stroke-width: 1.5; stroke-dasharray: none; }
 
+  /* 積分速度線 (橘) 與 GPS 速度線 (青藍) */
   .vt-line-path { fill: none; stroke: #ff9800; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
-  .vt-area-path { fill: #ff9800; fill-opacity: 0.15; stroke: none; }
+  .vt-gps-line-path { fill: none; stroke: #00bcd4; stroke-width: 2.0; stroke-dasharray: 4, 3; stroke-linecap: round; stroke-linejoin: round; }
+  .vt-area-path { fill: #ff9800; fill-opacity: 0.12; stroke: none; }
 
   .graph-labels text { fill: #a0aec0; font-size: 10px; font-family: monospace !important; user-select: none; }
   .graph-labels text.axis-title { fill: #ff9800; font-weight: bold; font-size: 11px; }
@@ -258,7 +260,8 @@
   /* 互動提示層 (Tooltip & Guide Line) */
   .interactive-guideline { stroke: #ff9800; stroke-width: 1; stroke-dasharray: 4, 4; opacity: 0.7; }
   .interactive-focus-point { fill: #ff9800; stroke: #ffffff; stroke-width: 2; }
-  .interactive-tooltip-bg { fill: rgba(20, 20, 20, 0.92); stroke: #ff9800; stroke-width: 1; rx: 6; ry: 6; }
+  .interactive-gps-focus-point { fill: #00bcd4; stroke: #ffffff; stroke-width: 2; }
+  .interactive-tooltip-bg { fill: rgba(20, 20, 20, 0.94); stroke: #ff9800; stroke-width: 1; rx: 6; ry: 6; }
   .interactive-tooltip-text { fill: #ffffff; font-size: 10px; font-family: monospace !important; font-weight: bold; }
 
   /* --- 歷史紀錄表格樣式 --- */
@@ -421,26 +424,29 @@
       </div>
     </div>
 
-    <!-- 第一頁：即時 v-t 圖表 -->
+    <!-- 第一頁：即時 v-t 圖表 (包含積分與 GPS 雙曲線) -->
     <div class="graph-container" id="p1-vtContainer">
       <button id="p1-btnResetZoom" class="btn-reset-zoom">重置縮放</button>
       <div class="graph-placeholder" id="p1-vtPlaceholder">
-        開始錄製積分後將繪製 v-t 曲線圖
+        開始錄製後將繪製 v-t 雙曲線圖
       </div>
       <svg id="p1-vtGraph" class="vtGraphClass" viewBox="0 0 500 280" preserveAspectRatio="none">
         <g id="p1-vtZoomGroup">
           <g id="p1-vtGrid" class="graph-grid"></g>
           <path id="p1-vtArea" class="vt-area-path" d="" />
           <path id="p1-vtLine" class="vt-line-path" d="" />
+          <path id="p1-vtGpsLine" class="vt-gps-line-path" d="" />
         </g>
         <g id="p1-vtZoomLabels" class="graph-labels"></g>
         <g id="p1-vtFixedLabels" class="graph-labels"></g>
         <g id="p1-vtInteractive" style="display: none; pointer-events: none;">
           <line id="p1-vtGuideLine" class="interactive-guideline" x1="0" y1="25" x2="0" y2="240" />
           <circle id="p1-vtFocusPoint" class="interactive-focus-point" r="5" />
-          <rect id="p1-vtTooltipBg" class="interactive-tooltip-bg" x="0" y="0" width="130" height="42" />
+          <circle id="p1-vtGpsFocusPoint" class="interactive-gps-focus-point" r="4" />
+          <rect id="p1-vtTooltipBg" class="interactive-tooltip-bg" x="0" y="0" width="135" height="54" />
           <text id="p1-vtTooltipTime" class="interactive-tooltip-text" x="0" y="0">00:00.0</text>
-          <text id="p1-vtTooltipSpeed" class="interactive-tooltip-text" x="0" y="0">速度 0.0 km/h</text>
+          <text id="p1-vtTooltipSpeed" class="interactive-tooltip-text" x="0" y="0" fill="#ff9800">積分 0.0 km/h</text>
+          <text id="p1-vtTooltipGpsSpeed" class="interactive-tooltip-text" x="0" y="0" fill="#00bcd4">GPS 0.0 km/h</text>
         </g>
       </svg>
     </div>
@@ -481,22 +487,25 @@
     <div class="graph-container" id="p2-vtContainer">
       <button id="p2-btnResetZoom" class="btn-reset-zoom">重置縮放</button>
       <div class="graph-placeholder" id="p2-vtPlaceholder">
-        點擊下方紀錄列的「v-t圖」重現曲線圖
+        點擊下方紀錄列的「v-t圖」重現雙曲線圖
       </div>
       <svg id="p2-vtGraph" class="vtGraphClass" viewBox="0 0 500 280" preserveAspectRatio="none">
         <g id="p2-vtZoomGroup">
           <g id="p2-vtGrid" class="graph-grid"></g>
           <path id="p2-vtArea" class="vt-area-path" d="" />
           <path id="p2-vtLine" class="vt-line-path" d="" />
+          <path id="p2-vtGpsLine" class="vt-gps-line-path" d="" />
         </g>
         <g id="p2-vtZoomLabels" class="graph-labels"></g>
         <g id="p2-vtFixedLabels" class="graph-labels"></g>
         <g id="p2-vtInteractive" style="display: none; pointer-events: none;">
           <line id="p2-vtGuideLine" class="interactive-guideline" x1="0" y1="25" x2="0" y2="240" />
           <circle id="p2-vtFocusPoint" class="interactive-focus-point" r="5" />
-          <rect id="p2-vtTooltipBg" class="interactive-tooltip-bg" x="0" y="0" width="130" height="42" />
+          <circle id="p2-vtGpsFocusPoint" class="interactive-gps-focus-point" r="4" />
+          <rect id="p2-vtTooltipBg" class="interactive-tooltip-bg" x="0" y="0" width="135" height="54" />
           <text id="p2-vtTooltipTime" class="interactive-tooltip-text" x="0" y="0">00:00.0</text>
-          <text id="p2-vtTooltipSpeed" class="interactive-tooltip-text" x="0" y="0">速度 0.0 km/h</text>
+          <text id="p2-vtTooltipSpeed" class="interactive-tooltip-text" x="0" y="0" fill="#ff9800">積分 0.0 km/h</text>
+          <text id="p2-vtTooltipGpsSpeed" class="interactive-tooltip-text" x="0" y="0" fill="#00bcd4">GPS 0.0 km/h</text>
         </g>
       </svg>
     </div>
@@ -540,7 +549,7 @@
   </div>
 
   <div style="text-align: center; font-size: 0.75rem; color: #555; margin-top: 15px;">
-    v4.0.5
+    v4.1
   </div>
 </div>
 
@@ -586,10 +595,10 @@ const graphStates = {
   p2: { zoomScale: 1.0, panTranslateX: 0.0, initialPinchDistance: null, initialScale: 1.0, isDragging: false, startDragX: 0, startPanX: 0 }
 };
 
-// localStorage 讀取 (修正邏輯錯誤：更新為 v40 鍵名)
+// localStorage 讀取 (更新為 v41 鍵名)
 let records = [];
 try {
-  const savedRecords = localStorage.getItem('speedometer_records_v40');
+  const savedRecords = localStorage.getItem('speedometer_records_v41');
   if (savedRecords) records = JSON.parse(savedRecords);
 } catch (e) {}
 
@@ -686,7 +695,7 @@ function initSensorListener() {
 
     const now = performance.now();
 
-    if (isAccelRecording) {
+    if (isAccelRecording || isGpsRecording) {
       if (cleanAccelY > maxAccelVal) { maxAccelVal = cleanAccelY; maxAccelValEl.textContent = maxAccelVal.toFixed(3); }
       if (cleanAccelY < 0) {
         let decelMag = Math.abs(cleanAccelY);
@@ -696,39 +705,47 @@ function initSensorListener() {
       if (lastAccelTimestamp !== null) {
         let dt = (now - lastAccelTimestamp) / 1000.0; 
         if (dt > 0 && dt < 0.5) { 
-          currentSpeed += cleanAccelY * dt;
+          if (isAccelRecording) {
+            currentSpeed += cleanAccelY * dt;
 
-          let isGpsFresh = (now - lastGpsUpdateTime) < 2000;
+            let isGpsFresh = (now - lastGpsUpdateTime) < 2000;
+            if (isGpsFresh && currentGpsAccuracy < 30 && currentGpsSpeedMps >= 0) {
+              if (currentGpsSpeedMps < 0.15 && Math.abs(cleanAccelY) < 0.03) {
+                currentSpeed = 0.0;
+              }
+            }
 
-          // 修正邏輯錯誤：當 GPS 判定車輛靜止時，僅對齊當前速度為 0，絕不自動覆蓋 yOffset (偏置)
-          if (isGpsFresh && currentGpsAccuracy < 30 && currentGpsSpeedMps >= 0) {
-            if (currentGpsSpeedMps < 0.15 && Math.abs(cleanAccelY) < 0.03) {
-              currentSpeed = 0.0;
+            if (currentSpeed < 0) currentSpeed = 0.0; 
+            totalDisplacement += currentSpeed * dt;
+
+            let speedKmh = currentSpeed * 3.6;
+            speedValEl.textContent = speedKmh.toFixed(1);
+
+            if (speedKmh > maxSpeedKmh) {
+              maxSpeedKmh = speedKmh;
+              maxSpeedValEl.textContent = maxSpeedKmh.toFixed(1);
+            }
+
+            if (totalDisplacement >= 1000) {
+              distValEl.textContent = (totalDisplacement / 1000).toFixed(2);
+              distUnitEl.textContent = "km";
+            } else {
+              distValEl.textContent = totalDisplacement.toFixed(1);
+              distUnitEl.textContent = "m";
             }
           }
 
-          if (currentSpeed < 0) currentSpeed = 0.0; 
-          totalDisplacement += currentSpeed * dt;
-
-          let speedKmh = currentSpeed * 3.6;
-          speedValEl.textContent = speedKmh.toFixed(1);
-
-          if (speedKmh > maxSpeedKmh) {
-            maxSpeedKmh = speedKmh;
-            maxSpeedValEl.textContent = maxSpeedKmh.toFixed(1);
-          }
-
-          if (totalDisplacement >= 1000) {
-            distValEl.textContent = (totalDisplacement / 1000).toFixed(2);
-            distUnitEl.textContent = "km";
-          } else {
-            distValEl.textContent = totalDisplacement.toFixed(1);
-            distUnitEl.textContent = "m";
-          }
-
-          // 效能優化：限制數據點寫入與圖表重繪頻率 (至少間隔 0.05 秒)，防止長期錄製導致畫面 Crash
+          // 限制採樣頻率，同時記錄積分速度 v 與 GPS 速度 gv
           if (now - lastPointPushTime > 50) {
-            vtPointsData.push({ t: totalRecordedTime, v: speedKmh });
+            let activeAccelKmh = isAccelRecording ? (currentSpeed * 3.6) : 0.0;
+            let activeGpsKmh = (now - lastGpsUpdateTime < 3000 && currentGpsSpeedKmh >= 0) ? currentGpsSpeedKmh : 0.0;
+
+            vtPointsData.push({ 
+              t: totalRecordedTime, 
+              v: activeAccelKmh, 
+              gv: activeGpsKmh 
+            });
+
             drawGraphToElement('p1', vtPointsData);
             lastPointPushTime = now;
           }
@@ -831,11 +848,12 @@ function applyZoomTransform(prefix) {
   zoomLabelsEl.innerHTML = zoomLabelsHtml;
 }
 
-// 通用繪製 v-t 圖表函式
+// 通用繪製 v-t 雙曲線圖表函式 (繪製積分速度與 GPS 速度)
 function drawGraphToElement(prefix, points) {
   const container = document.getElementById(`${prefix}-vtContainer`);
   const gridEl = document.getElementById(`${prefix}-vtGrid`);
   const lineEl = document.getElementById(`${prefix}-vtLine`);
+  const gpsLineEl = document.getElementById(`${prefix}-vtGpsLine`);
   const areaEl = document.getElementById(`${prefix}-vtArea`);
   const fixedLabelsEl = document.getElementById(`${prefix}-vtFixedLabels`);
   const interactiveEl = document.getElementById(`${prefix}-vtInteractive`);
@@ -844,9 +862,12 @@ function drawGraphToElement(prefix, points) {
   const graphWidth = 500 - paddingLeft - paddingRight, graphHeight = paddingBottom - paddingTop;
 
   let maxVInPoints = 0;
-  points.forEach(p => { if (p.v > maxVInPoints) maxVInPoints = p.v; });
+  points.forEach(p => { 
+    if (p.v > maxVInPoints) maxVInPoints = p.v; 
+    if (p.gv > maxVInPoints) maxVInPoints = p.gv;
+  });
 
-  const maxV = Math.max(prefix === 'p1' ? maxSpeedKmh : 0, maxVInPoints, 5); 
+  const maxV = Math.max(prefix === 'p1' ? Math.max(maxSpeedKmh, maxGpsSpeedKmh) : 0, maxVInPoints, 5); 
   const maxT = points.length > 1 ? Math.max(points[points.length - 1].t, 5) : 10;
 
   const numYTicks = 5, vStep = maxV / numYTicks, yStepPx = graphHeight / numYTicks;
@@ -877,6 +898,7 @@ function drawGraphToElement(prefix, points) {
   if (points.length < 2) {
     container.classList.remove('has-data');
     lineEl.setAttribute('d', '');
+    gpsLineEl.setAttribute('d', '');
     areaEl.setAttribute('d', '');
     if (interactiveEl) interactiveEl.style.display = "none";
     return;
@@ -887,16 +909,23 @@ function drawGraphToElement(prefix, points) {
   const svgPoints = points.map(p => ({
     x: paddingLeft + (p.t / maxT) * graphWidth,
     y: paddingBottom - (p.v / maxV) * graphHeight,
-    t: p.t, v: p.v
+    gpsY: paddingBottom - ((p.gv || 0) / maxV) * graphHeight,
+    t: p.t, v: p.v, gv: p.gv || 0
   }));
 
+  // 1. 繪製積分速度曲線 (橘)
   let lineD = `M ${svgPoints[0].x.toFixed(1)} ${svgPoints[0].y.toFixed(1)}`;
   for (let i = 1; i < svgPoints.length; i++) lineD += ` L ${svgPoints[i].x.toFixed(1)} ${svgPoints[i].y.toFixed(1)}`;
+
+  // 2. 繪製 GPS 速度曲線 (青藍)
+  let gpsLineD = `M ${svgPoints[0].x.toFixed(1)} ${svgPoints[0].gpsY.toFixed(1)}`;
+  for (let i = 1; i < svgPoints.length; i++) gpsLineD += ` L ${svgPoints[i].x.toFixed(1)} ${svgPoints[i].y.toFixed(1)}`;
 
   const lastP = svgPoints[svgPoints.length - 1], firstP = svgPoints[0];
   let areaD = `${lineD} L ${lastP.x.toFixed(1)} ${paddingBottom} L ${firstP.x.toFixed(1)} ${paddingBottom} Z`;
 
   lineEl.setAttribute('d', lineD);
+  gpsLineEl.setAttribute('d', gpsLineD);
   areaEl.setAttribute('d', areaD);
 
   applyZoomTransform(prefix);
@@ -910,9 +939,11 @@ function initVtGraphInteractivity(prefix) {
   const interactiveEl = document.getElementById(`${prefix}-vtInteractive`);
   const guideLine = document.getElementById(`${prefix}-vtGuideLine`);
   const focusPoint = document.getElementById(`${prefix}-vtFocusPoint`);
+  const gpsFocusPoint = document.getElementById(`${prefix}-vtGpsFocusPoint`);
   const tooltipBg = document.getElementById(`${prefix}-vtTooltipBg`);
   const tooltipTime = document.getElementById(`${prefix}-vtTooltipTime`);
   const tooltipSpeed = document.getElementById(`${prefix}-vtTooltipSpeed`);
+  const tooltipGpsSpeed = document.getElementById(`${prefix}-vtTooltipGpsSpeed`);
 
   const st = graphStates[prefix];
 
@@ -996,8 +1027,11 @@ function initVtGraphInteractivity(prefix) {
     const graphHeight = paddingBottom - paddingTop;
 
     let maxVInPoints = 0;
-    points.forEach(p => { if (p.v > maxVInPoints) maxVInPoints = p.v; });
-    const maxV = Math.max(prefix === 'p1' ? maxSpeedKmh : 0, maxVInPoints, 5);
+    points.forEach(p => { 
+      if (p.v > maxVInPoints) maxVInPoints = p.v; 
+      if (p.gv > maxVInPoints) maxVInPoints = p.gv;
+    });
+    const maxV = Math.max(prefix === 'p1' ? Math.max(maxSpeedKmh, maxGpsSpeedKmh) : 0, maxVInPoints, 5);
     const maxT = Math.max(points[points.length - 1].t, 5);
 
     let closestPoint = null;
@@ -1011,8 +1045,10 @@ function initVtGraphInteractivity(prefix) {
         closestPoint = {
           t: p.t,
           v: p.v,
+          gv: p.gv || 0,
           x: px,
-          y: paddingBottom - (p.v / maxV) * graphHeight
+          y: paddingBottom - (p.v / maxV) * graphHeight,
+          gpsY: paddingBottom - ((p.gv || 0) / maxV) * graphHeight
         };
       }
     });
@@ -1028,12 +1064,17 @@ function initVtGraphInteractivity(prefix) {
     focusPoint.setAttribute('cx', screenX);
     focusPoint.setAttribute('cy', closestPoint.y);
 
-    let tooltipX = screenX - 65;
-    if (tooltipX < paddingLeft) tooltipX = paddingLeft;
-    if (tooltipX + 130 > 500 - paddingRight) tooltipX = 500 - paddingRight - 130;
+    if (gpsFocusPoint) {
+      gpsFocusPoint.setAttribute('cx', screenX);
+      gpsFocusPoint.setAttribute('cy', closestPoint.gpsY);
+    }
 
-    let tooltipY = closestPoint.y - 50;
-    if (tooltipY < 5) tooltipY = closestPoint.y + 15;
+    let tooltipX = screenX - 67;
+    if (tooltipX < paddingLeft) tooltipX = paddingLeft;
+    if (tooltipX + 135 > 500 - paddingRight) tooltipX = 500 - paddingRight - 135;
+
+    let tooltipY = Math.min(closestPoint.y, closestPoint.gpsY) - 62;
+    if (tooltipY < 5) tooltipY = Math.max(closestPoint.y, closestPoint.gpsY) + 15;
 
     tooltipBg.setAttribute('x', tooltipX);
     tooltipBg.setAttribute('y', tooltipY);
@@ -1041,13 +1082,19 @@ function initVtGraphInteractivity(prefix) {
     const mins = Math.floor(closestPoint.t / 60).toString().padStart(2, '0');
     const secs = (closestPoint.t % 60).toFixed(1).padStart(4, '0');
 
-    tooltipTime.setAttribute('x', tooltipX + 10);
-    tooltipTime.setAttribute('y', tooltipY + 16);
+    tooltipTime.setAttribute('x', tooltipX + 8);
+    tooltipTime.setAttribute('y', tooltipY + 15);
     tooltipTime.textContent = `${mins}:${secs} (${closestPoint.t.toFixed(1)}s)`;
 
-    tooltipSpeed.setAttribute('x', tooltipX + 10);
-    tooltipSpeed.setAttribute('y', tooltipY + 34);
-    tooltipSpeed.textContent = `速度 ${closestPoint.v.toFixed(1)} km/h`;
+    tooltipSpeed.setAttribute('x', tooltipX + 8);
+    tooltipSpeed.setAttribute('y', tooltipY + 31);
+    tooltipSpeed.textContent = `積分: ${closestPoint.v.toFixed(1)} km/h`;
+
+    if (tooltipGpsSpeed) {
+      tooltipGpsSpeed.setAttribute('x', tooltipX + 8);
+      tooltipGpsSpeed.setAttribute('y', tooltipY + 46);
+      tooltipGpsSpeed.textContent = `GPS : ${closestPoint.gv.toFixed(1)} km/h`;
+    }
   };
 
   graph.addEventListener('mousemove', handlePointer);
@@ -1095,6 +1142,7 @@ btnZero.addEventListener('click', () => {
   resetZoomState('p1');
   document.getElementById('p1-vtContainer').classList.remove('has-data');
   document.getElementById('p1-vtLine').setAttribute('d', '');
+  document.getElementById('p1-vtGpsLine').setAttribute('d', '');
   document.getElementById('p1-vtArea').setAttribute('d', '');
 
   maxAccelValEl.textContent = "0.000"; maxDecelValEl.textContent = "0.000";
@@ -1116,7 +1164,7 @@ btnToggleAccel.addEventListener('click', async () => {
     lastAccelTimestamp = performance.now(); startRecordingTimer(); await requestWakeLock();
   } else {
     btnToggleAccel.textContent = "錄製積分"; btnToggleAccel.className = "ctrl-btn btn-gmeter-idle";
-    saveCurrentRecord(true, false); await checkWakeLockState();
+    saveCurrentRecord(true, isGpsRecording); await checkWakeLockState();
   }
 });
 
@@ -1128,7 +1176,7 @@ btnToggleGps.addEventListener('click', async () => {
     startRecordingTimer(); await requestWakeLock();
   } else {
     btnToggleGps.textContent = "錄製 GPS"; btnToggleGps.className = "ctrl-btn btn-gps-idle";
-    saveCurrentRecord(false, true); await checkWakeLockState();
+    saveCurrentRecord(isAccelRecording, true); await checkWakeLockState();
   }
 });
 
@@ -1153,6 +1201,7 @@ btnReset.addEventListener('click', async () => {
   resetZoomState('p1');
   document.getElementById('p1-vtContainer').classList.remove('has-data');
   document.getElementById('p1-vtLine').setAttribute('d', '');
+  document.getElementById('p1-vtGpsLine').setAttribute('d', '');
   document.getElementById('p1-vtArea').setAttribute('d', '');
 
   speedValEl.textContent = "0.0"; gpsSpeedValEl.textContent = "0.0";
@@ -1190,7 +1239,7 @@ function addRecord(maxSpeed, maxGpsSpeed, displacement, gpsDisplacement, duratio
 }
 
 function saveRecordsToStorage() {
-  try { localStorage.setItem('speedometer_records_v40', JSON.stringify(records)); } catch (e) {}
+  try { localStorage.setItem('speedometer_records_v41', JSON.stringify(records)); } catch (e) {}
 }
 
 // 渲染第一頁簡便表格 (前 5 筆)
@@ -1258,7 +1307,7 @@ window.loadRecordGraph = function(id) {
   document.getElementById('p2-vtContainer').scrollIntoView({ behavior: 'smooth' });
 };
 
-// 單筆紀錄 CSV 匯出
+// 單筆紀錄 CSV 匯出 (同時匯出積分速度與 GPS 速度)
 window.exportSingleCsv = function(id) {
   const target = records.find(r => r.id === id);
   if (!target || !target.vtPoints || target.vtPoints.length === 0) {
@@ -1266,8 +1315,10 @@ window.exportSingleCsv = function(id) {
     return;
   }
 
-  let csv = "\uFEFF時間(s),速度(km/h)\n";
-  target.vtPoints.forEach(pt => { csv += `${pt.t.toFixed(2)},${pt.v.toFixed(2)}\n`; });
+  let csv = "\uFEFF時間(s),積分速度(km/h),GPS速度(km/h)\n";
+  target.vtPoints.forEach(pt => { 
+    csv += `${pt.t.toFixed(2)},${pt.v.toFixed(2)},${(pt.gv || 0).toFixed(2)}\n`; 
+  });
 
   downloadCsvBlob(csv, `speed_data_${target.time.replace(/:/g, '-')}.csv`);
 };
