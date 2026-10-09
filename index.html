@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>加速度積分 與 GPS 測速器 4.0</title>
+  <title>加速度積分 與 GPS 測速器 4.0.1</title>
   <style>
   /* --- 基礎樣式還原 --- */
   * { box-sizing: border-box; }
@@ -540,7 +540,7 @@
   </div>
 
   <div style="text-align: center; font-size: 0.75rem; color: #555; margin-top: 15px;">
-    v4.0
+    v4.0.1
   </div>
 </div>
 
@@ -575,7 +575,7 @@ let currentGpsSpeedMps = -1.0, currentGpsSpeedKmh = 0.0, maxGpsSpeedKmh = 0.0;
 let totalGpsDisplacement = 0.0, currentGpsAccuracy = 999.0, lastGpsUpdateTime = 0;
 let lastLat = null, lastLon = null;
 
-let lastAccelTimestamp = null, recordingStartTime = null, totalRecordedTime = 0.0, timerInterval = null; 
+let lastAccelTimestamp = null, lastPointPushTime = 0, recordingStartTime = null, totalRecordedTime = 0.0, timerInterval = null; 
 let lpfAlpha = 0.20; 
 let vtPointsData = [];
 let p2ActivePointsData = [];
@@ -586,10 +586,10 @@ const graphStates = {
   p2: { zoomScale: 1.0, panTranslateX: 0.0, initialPinchDistance: null, initialScale: 1.0, isDragging: false, startDragX: 0, startPanX: 0 }
 };
 
-// localStorage 讀取
+// localStorage 讀取 (修正邏輯錯誤：更新為 v40 鍵名)
 let records = [];
 try {
-  const savedRecords = localStorage.getItem('speedometer_records_v37');
+  const savedRecords = localStorage.getItem('speedometer_records_v40');
   if (savedRecords) records = JSON.parse(savedRecords);
 } catch (e) {}
 
@@ -700,12 +700,10 @@ function initSensorListener() {
 
           let isGpsFresh = (now - lastGpsUpdateTime) < 2000;
 
-          // GPS 車站/靜止狀態強制對齊歸零
+          // 修正邏輯錯誤：當 GPS 判定車輛靜止時，僅對齊當前速度為 0，絕不自動覆蓋 yOffset (偏置)
           if (isGpsFresh && currentGpsAccuracy < 30 && currentGpsSpeedMps >= 0) {
             if (currentGpsSpeedMps < 0.15 && Math.abs(cleanAccelY) < 0.03) {
               currentSpeed = 0.0;
-              yOffset = filteredY; 
-              if (biasDisplayYEl) biasDisplayYEl.value = yOffset.toFixed(4) + " m/s²";
             }
           }
 
@@ -728,8 +726,12 @@ function initSensorListener() {
             distUnitEl.textContent = "m";
           }
 
-          vtPointsData.push({ t: totalRecordedTime, v: speedKmh });
-          drawGraphToElement('p1', vtPointsData);
+          // 效能優化：限制數據點寫入與圖表重繪頻率 (至少間隔 0.05 秒)，防止長期錄製導致畫面 Crash
+          if (now - lastPointPushTime > 50) {
+            vtPointsData.push({ t: totalRecordedTime, v: speedKmh });
+            drawGraphToElement('p1', vtPointsData);
+            lastPointPushTime = now;
+          }
         }
       }
       lastAccelTimestamp = now;
@@ -1188,7 +1190,7 @@ function addRecord(maxSpeed, maxGpsSpeed, displacement, gpsDisplacement, duratio
 }
 
 function saveRecordsToStorage() {
-  try { localStorage.setItem('speedometer_records_v37', JSON.stringify(records)); } catch (e) {}
+  try { localStorage.setItem('speedometer_records_v40', JSON.stringify(records)); } catch (e) {}
 }
 
 // 渲染第一頁簡便表格 (前 5 筆)
